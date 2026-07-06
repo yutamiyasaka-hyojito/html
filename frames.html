@@ -103,12 +103,11 @@ body {
 #dragDatePreview {
   cursor: move;
   user-select: none;
-  padding: 14px 32px;
+  padding: 14px;
   text-align: center;
   white-space: nowrap;
   box-sizing: border-box;
-  animation: gentle-pulse 2s infinite ease-in-out;
-  transition: box-shadow 0.3s ease, transform 0.1s ease;
+  transform 0.1s ease;
 }
 
 #dateWrapper:active #dragDatePreview {
@@ -334,17 +333,19 @@ body {
   position: fixed; top: 0; left: 50%;
   transform: translateX(-50%) translateY(0);
   z-index: 1000; display: flex; flex-direction: column; align-items: center;
-  background: rgba(0, 0, 0, 0.9); padding: 12px;
-  border-radius: 0 0 16px 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
   transition: transform 0.3s cubic-bezier(0.1, 0.76, 0.55, 0.94);
   width: 85vw; max-width: 400px; box-sizing: border-box;
+  display: block;
 }
 
 .toggle-top-btn {
-  border: none; background: rgba(255, 255, 255, 0.2); color: #fff;
+  border: none; background: rgba(0, 0, 0, 0.7); color: #fff;
   border-radius: 999px; padding: 6px 16px; font-size: 11px; font-weight: bold;
   letter-spacing: 0.05em; cursor: pointer; display: flex; align-items: center;
-  gap: 4px; margin-top: 8px;
+  gap: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  position: relative;
+  margin: 28px auto 0 auto;
 }
 
 .toggle-switch-label { position: relative; display: inline-block; width: 50px; height: 26px; margin-right: 8px; }
@@ -395,7 +396,8 @@ body {
 
 
 
-.config-panel-content { width: 100%; display: flex; flex-direction: column; gap: 8px; font-size: 12px; color: #fff; }
+.config-panel-content { width: 100%; display: flex; flex-direction: column; gap: 8px; font-size: 12px; color: #fff;background: rgba(0, 0, 0, 0.9);border-radius: 0 0 16px 16px;
+  padding: 12px; }
 .config-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .config-row select, .config-row input[type="color"], .config-row input[type="text"] {
   background: #222; color: #fff; border: 1px solid #555; border-radius: 4px; padding: 2px 6px; font-size: 12px;
@@ -404,6 +406,7 @@ body {
 
 .preview {
   position: fixed; inset: 0; z-index: 99999; background: rgba(0, 0, 0, 0.95); display: none; opacity: 0; transition: opacity 0.3s ease;
+  
 }
 .preview.show { display: block; opacity: 1; }
 .preview img {
@@ -580,10 +583,10 @@ body.hide-ui-mode #dragDatePreview:active {
           <span class="toggle-switch-slider"></span>
         </label>
       </div>
-      <div class="config-row">
-        <label>カスタム文字:</label>
-        <input type="text" id="configCustomText" value="入籍しました" placeholder="好きな文字を入力">
-      </div>
+      <div class="config-row" style="align-items: flex-start;">
+  <label style="margin-top: 6px;">カスタム文字:</label>
+  <textarea id="configCustomText" rows="2" style="flex: 1; resize: none; background: #222; color: #fff; border: 1px solid #555; border-radius: 4px; padding: 4px 6px; font-size: 12px; font-family: inherit;" placeholder="改行ボタンで複数行入力できます">文字を入力できます</textarea>
+</div>
       <div class="config-row">
         <label>文字の位置:</label>
         <select id="configTextOrder">
@@ -595,8 +598,8 @@ body.hide-ui-mode #dragDatePreview:active {
       <div class="config-row">
         <label>文字サイズ:</label>
         <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
-          <input type="range" id="configFontSize" min="14" max="40" value="18" style="flex: 1;">
-          <span id="fontSizeVal">18px</span>
+          <input type="range" id="configFontSize" min="14" max="40" value="16" style="flex: 1;">
+          <span id="fontSizeVal">16px</span>
         </div>
       </div>
       <div class="config-row">
@@ -607,41 +610,45 @@ body.hide-ui-mode #dragDatePreview:active {
           <option value="hyphen">ハイフン (2026-07-03)</option>
           <option value="dot">ドット (2026.07.03)</option>
           <option value="slash">スラッシュ (2026/07/03)</option>
+          <option value="kanji-vertical">和暦漢数字 (縦書き)</option>
         </select>
       </div>
       <div class="config-row">
-        <label>フォント:</label>
+        
+        <label>書体:</label>
         <select id="configFont">
           <option value="'Noto Serif JP', serif">上品な明朝体</option>
-          <option value="'Yomogi', cursive">かわいい手書き風(和文対応)</option>
-          <option value="'Alex Brush', cursive">Elegant手書き(欧文専用)</option>
+          <option value="'Yomogi', cursive">手書き風</option>
           <option value="'Noto Sans JP', sans-serif">モダンなゴシック</option>
-          <option value="'Yuji Syuku', serif">味わい深い筆文字風</option>
+          <option value="'Yuji Syuku', serif">筆文字風</option>
           <option value="'Share Tech Mono', monospace">デジタル</option>
         </select>
-      </div>
-      <div class="config-row">
+
+        
         <label>文字色:</label>
         <input type="color" id="configTextColor" value="#ffffff">
+        
+      </div>
+      
+      <div class="config-row">
         <label>外枠線:</label>
         <select id="configHasBorder">
           <option value="yes">枠線あり</option>
           <option value="no">枠線なし</option>
         </select>
-      </div>
-      <div class="config-row">
         <label>枠線色:</label>
         <input type="color" id="configBorderColor" value="#d4af37">
-        <label>背景色:</label>
-        <input type="color" id="configBgColor" value="#000000">
+        
       </div>
       <div class="config-row">
+        <label>背景色:</label>
+        <input type="color" id="configBgColor" value="#000000">
         <label>背景透明度:</label>
         <select id="configBgAlpha">
           <option value="0.55">通常 (55%)</option>
           <option value="0.85">濃いめ (85%)</option>
           <option value="0.20">薄め (20%)</option>
-          <option value="0.00">なし (完全に透明)</option>
+          <option value="0.00">なし (透明)</option>
         </select>
       </div>
     </div>
