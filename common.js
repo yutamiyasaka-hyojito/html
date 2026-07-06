@@ -251,6 +251,7 @@ function slideTo(direction, newIndex) {
   setTimeout(() => { setupOrder(); isAnimating = false; }, 450); 
 }
 
+
 /* ==========================================
  * 🔒 カメラ起動
  * ========================================== */
