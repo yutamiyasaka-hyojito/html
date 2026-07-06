@@ -1,0 +1,1048 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>3Dカメラ</title>
+
+<script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+
+<style>
+:root { --app-height: 100dvh; }
+
+html, body {
+  margin: 0;
+  width: 100%;
+  height: var(--app-height);
+  overflow: hidden;
+  background: #000;
+  touch-action: none;
+}
+
+.camera-wrap {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: var(--app-height);
+  overflow: hidden;
+  background: #000;
+  z-index: 1;
+}
+
+#cameraVideo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #000;
+}
+
+/* 💡 インカメラ自撮り時のミラー表示用クラス */
+.mirror {
+  transform: scaleX(-1);
+}
+
+.model-scene {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: var(--app-height) !important;
+  z-index: 5 !important;
+  pointer-events: auto !important;
+  background: transparent !important;
+}
+
+.model-scene canvas,
+.model-scene .a-canvas {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: var(--app-height) !important;
+  background: transparent !important;
+  filter: saturate(.74) contrast(.88) brightness(.94) blur(.28px);
+  transform-origin: center center;
+}
+
+.old-photo-filter {
+  display: none;
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: var(--app-height);
+  z-index: 20;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at center, rgba(255,255,255,0) 45%, rgba(60,30,0,.38) 100%),
+    repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0px, rgba(255,255,255,.05) 1px, transparent 2px, transparent 7px),
+    repeating-radial-gradient(circle, rgba(0,0,0,.08) 0px, rgba(0,0,0,.08) 1px, transparent 2px, transparent 5px);
+  mix-blend-mode: multiply;
+}
+
+.old-photo-filter::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(12deg, rgba(255,255,255,.18) 0px, rgba(255,255,255,.18) 1px, transparent 2px, transparent 90px);
+  opacity: .45;
+}
+
+.old-photo-filter::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, transparent 18%, rgba(255,255,255,.18) 18.4%, transparent 19%),
+    linear-gradient(90deg, transparent 72%, rgba(0,0,0,.18) 72.2%, transparent 73%);
+  opacity: .35;
+}
+
+.old-photo-on #cameraVideo,
+.old-photo-on .model-scene canvas,
+.old-photo-on .model-scene .a-canvas {
+  filter: sepia(.9) contrast(1.08) brightness(.9) saturate(.58) blur(.28px);
+}
+
+.old-photo-on .old-photo-filter {
+  display: block;
+}
+
+.ui {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  pointer-events: none;
+}
+
+.mode-ui {
+  position: fixed;
+  left: 50%;
+  bottom: 112px;
+  transform: translateX(-50%);
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  width: 92vw;
+  pointer-events: auto;
+}
+
+.mode-ui button {
+  border: none;
+  border-radius: 999px;
+  padding: 10px 16px;
+  background: rgba(255,255,255,.75);
+  font-size: 14px;
+}
+
+.mode-ui button.active {
+  background: rgba(0,0,0,.75);
+  color: #fff;
+}
+
+.btn {
+  position: fixed;
+  bottom: 54px;
+  right: 12px;
+  width: 48px;
+  height: 48px;
+  border: none;
+  border-radius: 50%;
+  padding: 9px;
+  background: rgba(255,255,255,.75);
+  pointer-events: auto;
+  transition: transform 0.1s ease;
+}
+
+.btn:active {
+  transform: scale(0.9);
+}
+
+.btn img {
+  width: 30px;
+  height: 30px;
+}
+
+.filter-btn {
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  font-size: 13px;
+  padding: 8px 10px;
+  width: 10em;
+  border-radius: 999px;
+  border: none;
+  background: rgba(255,255,255,.75);
+  pointer-events: auto;
+}
+
+.filter-btn.on {
+  background: rgba(120,70,25,.9);
+  color: #fff;
+}
+
+.shutter {
+  width: 74px;
+  height: 74px;
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  margin-left: -37px;
+  border-radius: 50%;
+  border: 5px solid #fff;
+  background: rgba(255,255,255,.85);
+  pointer-events: auto;
+  transition: transform 0.1s ease;
+}
+
+/* 💡 シャッターフィードバック */
+.shutter.press {
+  transform: scale(0.85);
+}
+
+.status {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 1000;
+  background: rgba(0,0,0,.55);
+  color: #fff;
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+.back {
+  position: fixed;
+  bottom: 12px;
+  right: 12px;
+  z-index: 1000;
+  background: rgba(255,255,255,.75);
+  color: #000;
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 999px;
+  pointer-events: auto;
+  text-decoration: none;
+}
+
+/* 💡 プレビュー画面のスタイル調整とふわっとフェードイン演出 */
+.preview {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(0, 0, 0, 0.95);
+  display: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.preview.show {
+  display: block;
+  opacity: 1;
+}
+
+.preview img {
+  width: 100vw;
+  height: calc(var(--app-height) - 100px);
+  object-fit: contain;
+  object-position: center center;
+  display: block;
+  transform: scale(0.95);
+  transition: transform 0.3s ease;
+}
+
+.preview.show img {
+  transform: scale(1);
+}
+
+/* 💡 ボタンが3つ横並びになるためレイアウトと幅を最適化 */
+.preview-ui {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 24px;
+  z-index: 100000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+}
+
+.preview-ui button,
+.preview-ui a {
+  border: none;
+  border-radius: 999px;
+  background: #fff;
+  color: #000;
+  padding: 14px 0;
+  font-size: 14px;
+  font-weight: bold;
+  text-decoration: none;
+  text-align: center;
+  flex: 1;
+  max-width: 110px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+  cursor: pointer;
+}
+
+#retakeBtn {
+  background: #555;
+  color: #fff;
+}
+
+#saveBtn {
+  background: #ffcc00;
+  color: #000;
+}
+
+/* 💡 シェアボタン（LINE・SNSカラー） */
+#shareBtn {
+  background: #00c300;
+  color: #fff;
+}
+
+#saveToast {
+  position: fixed;
+  left: 50%;
+  bottom: 110px;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,.82);
+  color: #fff;
+  padding: 12px 18px;
+  border-radius: 999px;
+  font-size: 14px;
+  z-index: 999999;
+  opacity: 0;
+  pointer-events: none;
+  transition: .25s;
+}
+
+#saveToast.show {
+  opacity: 1;
+}
+
+/* 💡 撮影時フラッシュ演出用のレイヤー */
+#shot-effect {
+  position: fixed;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+  z-index: 50000;
+  pointer-events: none;
+  transition: opacity .1s ease-out;
+}
+
+.a-enter-vr,
+.a-enter-ar {
+  display: none !important;
+}
+</style>
+</head>
+
+<body>
+
+<div class="camera-wrap">
+  <video id="cameraVideo" autoplay playsinline muted></video>
+</div>
+
+<a-scene
+  id="scene"
+  class="model-scene"
+  embedded
+  vr-mode-ui="enabled: false"
+  device-orientation-permission-ui="enabled: false"
+  renderer="alpha: true; antialias: true; preserveDrawingBuffer: true; colorManagement: true;"
+>
+  <a-assets>
+    <a-asset-item id="carModel" src="img/kunitachi_car.glb"></a-asset-item>
+  </a-assets>
+
+  <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+  <a-light type="ambient" intensity="1.0"></a-light>
+  <a-light type="directional" position="-1 2 2" intensity="0.32"></a-light>
+
+  <a-entity
+    id="carWrap"
+    position="0.35 -0.84 -4"
+    rotation="0 260 0"
+    scale="2 2 2">
+
+    <a-gltf-model
+      id="carModelEntity"
+      src="#carModel">
+    </a-gltf-model>
+
+  </a-entity>
+</a-scene>
+
+<div class="old-photo-filter" id="oldPhotoFilter"></div>
+
+<div class="status" id="status">移動モード：ドラッグで配置できます</div>
+
+<a class="back" href="ar.html">読み込み画面に戻る</a>
+
+<div class="ui">
+  <div class="mode-ui">
+    <button id="moveModeBtn" class="active">移動</button>
+    <button id="rotateModeBtn">回転</button>
+    <button id="scaleModeBtn">拡大・縮小</button>
+  </div>
+
+  <button class="filter-btn" id="filterBtn">古写真フィルター</button>
+
+  <button class="btn" id="flipBtn">
+    <img src="./img/ico_hanten.png" alt="反転">
+  </button>
+
+  <button class="shutter" id="captureBtn" aria-label="撮影"></button>
+</div>
+
+<div class="preview" id="preview">
+  <img id="previewImg" alt="">
+  <div class="preview-ui">
+    <button id="retakeBtn">撮り直し</button>
+    <a id="saveBtn" href="#" download="kunitachi-car-ar.png">保存する</a>
+    <button id="shareBtn">シェア</button> </div>
+</div>
+
+<div id="saveToast">📸 写真を保存しました</div>
+<div id="shot-effect"></div>
+
+<script>
+function setAppHeight() {
+  document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`);
+}
+
+setAppHeight();
+
+window.addEventListener('resize', setAppHeight);
+window.addEventListener('orientationchange', () => {
+  setTimeout(setAppHeight, 300);
+});
+
+const video = document.getElementById('cameraVideo');
+const statusEl = document.getElementById('status');
+
+const sceneEl = document.getElementById('scene');
+const captureBtn = document.getElementById('captureBtn');
+const flipBtn = document.getElementById('flipBtn');
+const filterBtn = document.getElementById('filterBtn');
+
+const moveModeBtn = document.getElementById('moveModeBtn');
+const rotateModeBtn = document.getElementById('rotateModeBtn');
+const scaleModeBtn = document.getElementById('scaleModeBtn');
+
+const preview = document.getElementById('preview');
+const previewImg = document.getElementById('previewImg');
+const retakeBtn = document.getElementById('retakeBtn');
+const saveBtn = document.getElementById('saveBtn');
+const shareBtn = document.getElementById('shareBtn'); // 💡 追加
+const saveToast = document.getElementById('saveToast');
+const shotEffect = document.getElementById('shot-effect');
+
+const carWrap = document.getElementById('carWrap');
+const carModelEntity = document.getElementById('carModelEntity');
+
+let stream = null;
+let facingMode = 'environment';
+let isStartingCamera = false;
+let lastCameraRestart = 0;
+
+let mode = 'move';
+
+let screenX = 0;
+let screenY = 0;
+
+let rotationY = 260;
+let rotationZ = 0;
+
+let modelScale = 2.0;
+let startScale = 2.0;
+let startDistance = 0;
+
+let isDragging = false;
+let lastX = 0;
+let lastY = 0;
+
+let oldPhotoEnabled = false;
+let currentDataUrl = null; // 💡 追加：シェア用に統合データを保持
+
+function getAframeCanvas() {
+  return sceneEl && sceneEl.canvas;
+}
+
+function applyScreenTransform() {
+  const canvas = getAframeCanvas();
+  if (!canvas) return;
+  canvas.style.transform = `translate(${screenX}px, ${screenY}px)`;
+}
+
+function updateModelTransform() {
+  carWrap.setAttribute('rotation', `0 ${rotationY} ${rotationZ}`);
+  carWrap.setAttribute('scale', `${modelScale} ${modelScale} ${modelScale}`);
+  applyScreenTransform();
+}
+
+function setMode(nextMode) {
+  mode = nextMode;
+
+  moveModeBtn.classList.toggle('active', mode === 'move');
+  rotateModeBtn.classList.toggle('active', mode === 'rotate');
+  scaleModeBtn.classList.toggle('active', mode === 'scale');
+
+  const labels = {
+    move: '移動モード：ドラッグで上下左右に配置できます',
+    rotate: '回転モード：左右で横回転、上下で傾き調整できます',
+    scale: '拡大・縮小モード：上下ドラッグでサイズ変更できます'
+  };
+
+  statusEl.textContent = labels[mode];
+}
+
+moveModeBtn.addEventListener('click', () => setMode('move'));
+rotateModeBtn.addEventListener('click', () => setMode('rotate'));
+scaleModeBtn.addEventListener('click', () => setMode('scale'));
+
+carModelEntity.addEventListener('model-loaded', () => {
+  statusEl.textContent = '移動モード：ドラッグで配置できます';
+  setTimeout(applyScreenTransform, 300);
+});
+
+carModelEntity.addEventListener('model-error', e => {
+  statusEl.textContent = '3Dモデルを読み込めませんでした';
+  console.log('MODEL ERROR', e);
+});
+
+function stopCamera() {
+  if (stream) {
+    stream.getTracks().forEach(track => {
+      try {
+        track.stop();
+      } catch(e) {}
+    });
+  }
+
+  stream = null;
+  video.srcObject = null;
+}
+
+async function startCamera(force = false) {
+  if (isStartingCamera) return;
+
+  const now = Date.now();
+
+  if (!force && now - lastCameraRestart < 1200) {
+    return;
+  }
+
+  lastCameraRestart = now;
+  isStartingCamera = true;
+
+  try {
+    stopCamera();
+
+    const constraints = {
+      video: {
+        facingMode: { ideal: facingMode },
+        width: { ideal: 1280 },
+        height: { ideal: 720 }
+      },
+      audio: false
+    };
+
+    stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+    video.srcObject = stream;
+    video.muted = true;
+    video.playsInline = true;
+    video.setAttribute('playsinline', '');
+    video.setAttribute('muted', '');
+
+    await new Promise(resolve => {
+      if (video.readyState >= 1) {
+        resolve();
+      } else {
+        video.onloadedmetadata = () => resolve();
+      }
+    });
+
+    await video.play();
+
+    // 💡 インカメラ自撮りモードのときは、背景映像を鏡写しにする
+    if (facingMode === 'user') {
+      video.classList.add('mirror');
+    } else {
+      video.classList.remove('mirror');
+    }
+
+    const track = stream.getVideoTracks()[0];
+
+    if (track) {
+      track.onended = () => {
+        console.log('camera track ended');
+        setTimeout(() => restartCameraSafely(), 500);
+      };
+
+      track.onmute = () => {
+        console.log('camera track muted');
+        setTimeout(() => restartCameraSafely(), 800);
+      };
+    }
+
+    console.log('camera started:', facingMode);
+
+  } catch (e) {
+    console.error('camera start error:', e);
+
+    if (facingMode === 'environment') {
+      try {
+        stopCamera();
+
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false
+        });
+
+        video.srcObject = stream;
+        video.muted = true;
+        video.playsInline = true;
+        video.setAttribute('playsinline', '');
+        video.setAttribute('muted', '');
+
+        await new Promise(resolve => {
+          if (video.readyState >= 1) {
+            resolve();
+          } else {
+            video.onloadedmetadata = () => resolve();
+          }
+        });
+
+        await video.play();
+
+      } catch (fallbackError) {
+        console.error('camera fallback error:', fallbackError);
+        alert('カメラを起動できませんでした');
+      }
+    } else {
+      alert('カメラを起動できませんでした');
+    }
+
+  } finally {
+    isStartingCamera = false;
+  }
+}
+
+async function restartCameraSafely() {
+  if (document.hidden) return;
+  await startCamera(true);
+}
+
+function isCameraProbablyDead() {
+  if (!stream) return true;
+  if (!stream.active) return true;
+
+  const tracks = stream.getVideoTracks();
+
+  if (!tracks.length) return true;
+
+  const track = tracks[0];
+
+  if (track.readyState !== 'live') return true;
+  if (video.readyState < 2) return true;
+  if (video.paused) return true;
+
+  return false;
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) {
+    setTimeout(() => {
+      if (isCameraProbablyDead()) {
+        console.log('visibilitychange restart');
+        restartCameraSafely();
+      } else {
+        video.play().catch(() => restartCameraSafely());
+      }
+    }, 500);
+  }
+});
+
+window.addEventListener('pageshow', () => {
+  setTimeout(() => {
+    console.log('pageshow camera check');
+    if (isCameraProbablyDead()) {
+      restartCameraSafely();
+    } else {
+      video.play().catch(() => restartCameraSafely());
+    }
+  }, 500);
+});
+
+window.addEventListener('focus', () => {
+  setTimeout(() => {
+    if (isCameraProbablyDead()) {
+      console.log('focus restart');
+      restartCameraSafely();
+    }
+  }, 500);
+});
+
+video.addEventListener('pause', () => {
+  setTimeout(() => {
+    if (!document.hidden && isCameraProbablyDead()) {
+      console.log('video pause restart');
+      restartCameraSafely();
+    }
+  }, 1000);
+});
+
+video.addEventListener('ended', () => {
+  console.log('video ended restart');
+  restartCameraSafely();
+});
+
+setInterval(() => {
+  if (!document.hidden && isCameraProbablyDead()) {
+    console.log('interval camera restart');
+    restartCameraSafely();
+  }
+}, 5000);
+
+function getDistance(touches) {
+  const dx = touches[0].clientX - touches[1].clientX;
+  const dy = touches[0].clientY - touches[1].clientY;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+window.addEventListener('pointerdown', e => {
+  if (e.target.closest('button') || e.target.closest('a')) return;
+
+  isDragging = true;
+  lastX = e.clientX;
+  lastY = e.clientY;
+});
+
+window.addEventListener('pointermove', e => {
+  if (!isDragging) return;
+
+  // 💡 自撮りモードの時は操作ドラッグの左右方向を逆にし、直感的な操作感にする
+  const invertX = facingMode === 'user' ? -1 : 1;
+  const dx = (e.clientX - lastX) * invertX;
+  const dy = e.clientY - lastY;
+
+  lastX = e.clientX;
+  lastY = e.clientY;
+
+  if (mode === 'move') {
+    screenX += dx;
+    screenY += dy;
+  }
+
+  if (mode === 'rotate') {
+    rotationY += dx * 0.5;
+    rotationZ += dy * 0.35;
+    rotationZ = Math.max(-35, Math.min(rotationZ, 35));
+  }
+
+  if (mode === 'scale') {
+    modelScale += -dy * 0.01;
+    modelScale = Math.max(0.3, Math.min(modelScale, 3.5));
+  }
+
+  updateModelTransform();
+});
+
+window.addEventListener('pointerup', () => { isDragging = false; });
+window.addEventListener('pointercancel', () => { isDragging = false; });
+
+window.addEventListener('touchstart', e => {
+  if (e.touches.length === 2) {
+    e.preventDefault();
+    isDragging = false;
+    startDistance = getDistance(e.touches);
+    startScale = modelScale;
+  }
+}, { passive: false });
+
+window.addEventListener('touchmove', e => {
+  if (e.touches.length === 2) {
+    e.preventDefault();
+
+    const currentDistance = getDistance(e.touches);
+    modelScale = startScale * (currentDistance / startDistance);
+    modelScale = Math.max(0.3, Math.min(modelScale, 3.5));
+
+    updateModelTransform();
+  }
+}, { passive: false });
+
+filterBtn.addEventListener('click', () => {
+  oldPhotoEnabled = !oldPhotoEnabled;
+  document.body.classList.toggle('old-photo-on', oldPhotoEnabled);
+  filterBtn.classList.toggle('on', oldPhotoEnabled);
+});
+
+/* ==========================================
+ * 🎨 Canvas描画（インカメラ左右反転ケア）
+ * ========================================== */
+function drawCoverVideo(ctx, video, canvasW, canvasH) {
+  const videoRatio = video.videoWidth / video.videoHeight;
+  const canvasRatio = canvasW / canvasH;
+
+  let sx, sy, sw, sh;
+
+  if (videoRatio > canvasRatio) {
+    sh = video.videoHeight;
+    sw = sh * canvasRatio;
+    sx = (video.videoWidth - sw) / 2;
+    sy = 0;
+  } else {
+    sw = video.videoWidth;
+    sh = sw / canvasRatio;
+    sx = 0;
+    sy = (video.videoHeight - sh) / 2;
+  }
+
+  // 💡 自撮りの時は背景のビデオレイヤーだけを反転させてキャプチャ
+  if (facingMode === 'user') {
+    ctx.save();
+    ctx.translate(canvasW, 0);
+    ctx.scale(-1, 1);
+  }
+
+  ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvasW, canvasH);
+
+  if (facingMode === 'user') {
+    ctx.restore();
+  }
+}
+
+function drawOldPhotoEffects(ctx, canvasW, canvasH) {
+  ctx.save();
+
+  const vignette = ctx.createRadialGradient(
+    canvasW / 2,
+    canvasH / 2,
+    canvasW * 0.15,
+    canvasW / 2,
+    canvasH / 2,
+    Math.max(canvasW, canvasH) * 0.7
+  );
+
+  vignette.addColorStop(0, 'rgba(255,255,255,0)');
+  vignette.addColorStop(0.55, 'rgba(255,255,255,0)');
+  vignette.addColorStop(1, 'rgba(45,20,0,0.42)');
+
+  ctx.fillStyle = vignette;
+  ctx.fillRect(0, 0, canvasW, canvasH);
+
+  ctx.globalAlpha = 0.08;
+  ctx.fillStyle = '#5b3a1b';
+
+  for (let y = 0; y < canvasH; y += 4) {
+    ctx.fillRect(0, y, canvasW, 1);
+  }
+
+  const grainCount = Math.floor((canvasW * canvasH) / 550);
+
+  for (let i = 0; i < grainCount; i++) {
+    const x = Math.random() * canvasW;
+    const y = Math.random() * canvasH;
+    const size = Math.random() * 1.6 + 0.4;
+    const alpha = Math.random() * 0.16 + 0.04;
+
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = Math.random() > 0.5 ? '#000' : '#fff';
+    ctx.fillRect(x, y, size, size);
+  }
+
+  ctx.restore();
+}
+
+/* ==========================================
+ * 🔊 撮影時演出（音＋フラッシュ＋ボタン縮小）
+ * ========================================== */
+function playShotEffect() {
+  // 💡 ボタンを凹ませる演出を追加
+  captureBtn.classList.add('press');
+  setTimeout(() => captureBtn.classList.remove('press'), 120);
+
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    const audioCtx = new AudioContext();
+    const bufferSize = audioCtx.sampleRate * 0.12;
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+    const noiseNode = audioCtx.createBufferSource();
+    noiseNode.buffer = buffer;
+    const filterNode = audioCtx.createBiquadFilter();
+    filterNode.type = 'bandpass';
+    filterNode.frequency.value = 1100;
+    filterNode.Q.value = 3;
+    const gainNode = audioCtx.createGain();
+    gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+    noiseNode.connect(filterNode);
+    filterNode.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    noiseNode.start();
+  } catch (e) { console.log(e); }
+
+  shotEffect.style.opacity = '0.9';
+  setTimeout(() => { shotEffect.style.opacity = '0'; }, 120);
+}
+
+/* ==========================================
+ * 📸 撮影ボタンの処理
+ * ========================================== */
+captureBtn.addEventListener('click', () => {
+  if (!video.videoWidth || !video.videoHeight) {
+    alert('camera video dimension not ready');
+    return;
+  }
+
+  // 演出
+  playShotEffect();
+
+  const canvas = document.createElement('canvas');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  const ctx = canvas.getContext('2d');
+
+  if (oldPhotoEnabled) {
+    ctx.filter = 'sepia(0.9) contrast(1.08) brightness(0.9) saturate(0.58)';
+  }
+
+  drawCoverVideo(ctx, video, canvas.width, canvas.height);
+
+  ctx.filter = 'none';
+
+  const aframeCanvas = getAframeCanvas();
+
+  if (sceneEl && sceneEl.renderer && sceneEl.camera && aframeCanvas) {
+    try {
+      sceneEl.renderer.render(sceneEl.object3D, sceneEl.camera);
+
+      if (oldPhotoEnabled) {
+        ctx.filter = 'sepia(0.9) contrast(1.08) brightness(0.9) saturate(0.58)';
+      } else {
+        ctx.filter = 'saturate(0.74) contrast(0.88) brightness(0.94) blur(0.28px)';
+      }
+
+      // 💡 自撮りの場合、ドラッグ配置座標（screenX）の向きを合わせて3Dモデルを合成
+      let drawX = screenX;
+      if (facingMode === 'user') {
+         ctx.save();
+         ctx.translate(canvas.width, 0);
+         ctx.scale(-1, 1);
+         drawX = -screenX; // 座標系を反転
+      }
+
+      ctx.drawImage(
+        aframeCanvas,
+        drawX,
+        screenY,
+        canvas.width,
+        canvas.height
+      );
+
+      if (facingMode === 'user') {
+        ctx.restore();
+      }
+
+      ctx.filter = 'none';
+
+    } catch (e) {
+      console.error('A-Frame canvas合成失敗:', e);
+    }
+  }
+
+  if (oldPhotoEnabled) {
+    drawOldPhotoEffects(ctx, canvas.width, canvas.height);
+  }
+
+  currentDataUrl = canvas.toDataURL('image/png'); // 💡 グローバル変数に代入
+
+  // プレビュー表示紐付け
+  previewImg.src = currentDataUrl;
+  saveBtn.href = currentDataUrl;
+  
+  const now = new Date();
+  const timeStr = now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0') + "_" + String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0') + String(now.getSeconds()).padStart(2, '0');
+  
+  saveBtn.download = oldPhotoEnabled
+    ? `old-photo-kunitachi-car_${timeStr}.png`
+    : `kunitachi-car-ar_${timeStr}.png`;
+
+  // 💡 プレビュー画面をふわっと表示
+  preview.style.display = 'block';
+  setTimeout(() => preview.classList.add('show'), 30);
+});
+
+/* ==========================================
+ * 🔗 シェアボタン処理 (Web Share API)
+ * ========================================== */
+shareBtn.addEventListener('click', async () => {
+  if (!currentDataUrl) return;
+
+  try {
+    const bin = atob(currentDataUrl.split(',')[1]);
+    const buffer = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) {
+      buffer[i] = bin.charCodeAt(i);
+    }
+    const blob = new Blob([buffer], { type: 'image/png' });
+    const file = new File([blob], 'kunitachi-car-ar.png', { type: 'image/png' });
+
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({
+        files: [file],
+        title: '3Dカメラ',
+        text: '3Dモデルと一緒に写真を撮影したよ！'
+      });
+    } else {
+      alert('お使いのブラウザ・環境は画像のシェアに対応していません。画像を長押し保存するか、「保存する」ボタンから保存したあとにシェアしてください。');
+    }
+  } catch (err) {
+    if (err.name !== 'AbortError') {
+      console.error('Share Error:', err);
+      alert('シェア処理中にエラーが発生しました。');
+    }
+  }
+});
+
+saveBtn.addEventListener('click', () => {
+  saveToast.classList.add('show');
+
+  setTimeout(() => {
+    saveToast.classList.remove('show');
+    preview.classList.remove('show');
+    setTimeout(() => { preview.style.display = 'none'; }, 300);
+  }, 1500);
+});
+
+retakeBtn.addEventListener('click', () => {
+  preview.classList.remove('show');
+  setTimeout(() => { preview.style.display = 'none'; }, 300);
+});
+
+flipBtn.addEventListener('click', async () => {
+  facingMode = facingMode === 'environment' ? 'user' : 'environment';
+  await startCamera(true);
+});
+
+updateModelTransform();
+startCamera(true);
+
+setTimeout(applyScreenTransform, 500);
+</script>
+
+</body>
+</html>

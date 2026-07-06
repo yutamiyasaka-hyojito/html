@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>日付付きフォトフレームデモ</title>
+
+<style>
+:root {
+  --app-height: 100dvh;
+}
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: var(--app-height);
+  overflow: hidden;
+  background: #000;
+  touch-action: none;
+}
+
+.camera-wrap {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: var(--app-height);
+  overflow: hidden;
+  background: #000;
+}
+
+#cameraVideo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* 💡 インカメラ反転（鏡面）用のスタイル */
+.mirror {
+  transform: scaleX(-1);
+}
+
+.frame-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: var(--app-height);
+  object-fit: contain;
+  object-position: center center;
+  transform: scale(1);
+  transform-origin: center center;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.ui {
+  position: relative;
+  left: 0;
+  right: 0;
+}
+
+.btn {
+  position: fixed;
+  bottom: 24px;
+  right: 20px;
+  width: 54px;
+  height: 54px;
+  z-index: 998;
+  padding: 12px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255,255,255,.75);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transition: transform 0.1s ease;
+}
+
+.btn:active {
+  transform: scale(0.9);
+}
+
+.btn img {
+  width: 30px;
+  height: 30px;
+}
+
+.shutter {
+  width: 74px;
+  height: 74px;
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  margin-left: -37px;
+  border-radius: 50%;
+  border: 5px solid #fff;
+  background: rgba(255,255,255,.85);
+  z-index: 999;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  transition: transform 0.1s ease;
+}
+
+/* 💡 シャッターフィードバック演出 */
+.shutter.press {
+  transform: scale(0.85);
+}
+
+/* 💡 プレビュー画面全体のスタイル修正とフワッとアニメーション */
+.preview {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  background: rgba(0, 0, 0, 0.95);
+  display: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.preview.show {
+  display: block;
+  opacity: 1;
+}
+
+.preview img {
+  width: 100vw;
+  height: calc(var(--app-height) - 100px);
+  object-fit: contain;
+  object-position: center center;
+  display: block;
+  transform: scale(0.95);
+  transition: transform 0.3s ease;
+}
+
+.preview.show img {
+  transform: scale(1);
+}
+
+/* 💡 ボタンが3つ並ぶため、隙間や最大幅を最適化 */
+.preview-ui {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 24px;
+  z-index: 100000;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+}
+
+.preview-ui button,
+.preview-ui a {
+  border: none;
+  border-radius: 999px;
+  padding: 14px 0;
+  font-size: 14px;
+  font-weight: bold;
+  text-decoration: none;
+  text-align: center;
+  flex: 1;
+  max-width: 110px;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+  cursor: pointer;
+}
+
+#retakeBtn {
+  background: #555;
+  color: #fff;
+}
+
+#saveBtn {
+  background: #ffcc00;
+  color: #000;
+}
+
+/* 💡 追加：シェアボタン */
+#shareBtn {
+  background: #00c300;
+  color: #fff;
+}
+
+#saveToast {
+  position: fixed;
+  left: 50%;
+  bottom: 120px;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,.85);
+  color: #fff;
+  padding: 12px 24px;
+  border-radius: 999px;
+  font-size: 14px;
+  z-index: 999999;
+  opacity: 0;
+  pointer-events: none;
+  transition: .25s;
+}
+
+#saveToast.show {
+  opacity: 1;
+}
+
+/* 💡 フラッシュ演出用のレイヤー */
+#shot-effect {
+  position: fixed;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+  z-index: 50000;
+  pointer-events: none;
+  transition: opacity .1s ease-out;
+}
+</style>
+</head>
+
+<body>
+
+<div class="camera-wrap">
+  <video id="cameraVideo" autoplay playsinline muted></video>
+</div>
+
+<img
+  id="photoFrame"
+  src="img/waku.png"
+  class="frame-overlay"
+  alt=""
+  onerror="alert('フレーム画像が読み込めていません')"
+>
+
+<div class="ui">
+  <button class="btn" id="flipBtn">
+    <img src="img/ico_hanten.png" alt="カメラ反転">
+  </button>
+  <button class="shutter" id="captureBtn" aria-label="撮影"></button>
+</div>
+
+<div class="preview" id="preview">
+  <img id="previewImg" alt="">
+  <div class="preview-ui">
+    <button id="retakeBtn">撮り直し</button>
+    <a id="saveBtn" href="#" download="photo-frame.png">保存する</a>
+    <button id="shareBtn">シェア</button> </div>
+</div>
+
+<div id="saveToast">📸 写真を保存しました</div>
+<div id="shot-effect"></div>
+
+<script>
+function setAppHeight() {
+  document.documentElement.style.setProperty(
+    '--app-height',
+    `${window.innerHeight}px`
+  );
+}
+
+setAppHeight();
+window.addEventListener('resize', setAppHeight);
+window.addEventListener('orientationchange', () => {
+  setTimeout(setAppHeight, 300);
+});
+
+const video = document.getElementById('cameraVideo');
+const frameImg = document.getElementById('photoFrame');
+
+const captureBtn = document.getElementById('captureBtn');
+const flipBtn = document.getElementById('flipBtn');
+
+const preview = document.getElementById('preview');
+const previewImg = document.getElementById('previewImg');
+const retakeBtn = document.getElementById('retakeBtn');
+const saveBtn = document.getElementById('saveBtn');
+const shareBtn = document.getElementById('shareBtn'); // 💡 追加
+const saveToast = document.getElementById('saveToast');
+const shotEffect = document.getElementById('shot-effect');
+
+let stream = null;
+let facingMode = 'environment';
+
+let frameScale = 1;
+let startScale = 1;
+let startDistance = 0;
+let currentDataUrl = null; // 💡 追加：シェア用にデータ保持
+
+/* ==========================================
+ * 🔒 カメラ起動（反転対策アップデート版）
+ * ========================================== */
+async function startCamera() {
+  if (stream) {
+    stream.getTracks().forEach(track => {
+      track.stop();
+    });
+    video.srcObject = null;
+  }
+
+  const constraints = {
+    video: {
+      facingMode: facingMode,
+      width: { ideal: 1920 },
+      height: { ideal: 1080 }
+    },
+    audio: false
+  };
+
+  try {
+    stream = await navigator.mediaDevices.getUserMedia(constraints);
+    video.srcObject = stream;
+    await video.play();
+
+    if (facingMode === 'user') {
+      video.classList.add('mirror');
+    } else {
+      video.classList.remove('mirror');
+    }
+
+  } catch (e) {
+    console.error("カメラ起動エラー、低解像度で再試行します:", e);
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: facingMode }, audio: false });
+      video.srcObject = stream;
+      await video.play();
+      if (facingMode === 'user') video.classList.add('mirror'); else video.classList.remove('mirror');
+    } catch (err) {
+      alert('カメラを起動できませんでした。ブラウザのカメラ権限を確認してください。');
+    }
+  }
+}
+
+/* ==========================================
+ * 🔍 ピンチイン・アウト（ズーム）
+ * ========================================== */
+function applyFrameZoom() {
+  frameImg.style.transform = `scale(${frameScale})`;
+  frameImg.style.transformOrigin = 'center center';
+}
+
+function getDistance(touches) {
+  const dx = touches[0].clientX - touches[1].clientX;
+  const dy = touches[0].clientY - touches[1].clientY;
+  return Math.sqrt(dx * dx + dy * dy);
+}
+
+window.addEventListener('touchstart', e => {
+  if (e.touches.length === 2) {
+    e.preventDefault();
+    startDistance = getDistance(e.touches);
+    startScale = frameScale;
+  }
+}, { passive: false });
+
+window.addEventListener('touchmove', e => {
+  if (e.touches.length === 2) {
+    e.preventDefault();
+
+    const currentDistance = getDistance(e.touches);
+    frameScale = startScale * (currentDistance / startDistance);
+    frameScale = Math.max(0.5, Math.min(frameScale, 3));
+
+    applyFrameZoom();
+  }
+}, { passive: false });
+
+/* ==========================================
+ * 🎨 Canvas描画（インカメラ時の左右反転を考慮）
+ * ========================================== */
+function drawCoverVideo(ctx, video, canvasW, canvasH) {
+  const videoRatio = video.videoWidth / video.videoHeight;
+  const canvasRatio = canvasW / canvasH;
+
+  let sx, sy, sw, sh;
+
+  if (videoRatio > canvasRatio) {
+    sh = video.videoHeight;
+    sw = sh * canvasRatio;
+    sx = (video.videoWidth - sw) / 2;
+    sy = 0;
+  } else {
+    sw = video.videoWidth;
+    sh = sw / canvasRatio;
+    sx = 0;
+    sy = (video.videoHeight - sh) / 2;
+  }
+
+  if (facingMode === 'user') {
+    ctx.save();
+    ctx.translate(canvasW, 0);
+    ctx.scale(-1, 1);
+  }
+
+  ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvasW, canvasH);
+
+  if (facingMode === 'user') {
+    ctx.restore();
+  }
+}
+
+function drawScaledContainImage(ctx, img, canvasW, canvasH, scale) {
+  const imgRatio = img.naturalWidth / img.naturalHeight;
+  const canvasRatio = canvasW / canvasH;
+
+  let drawW;
+  let drawH;
+
+  if (imgRatio > canvasRatio) {
+    drawW = canvasW;
+    drawH = canvasW / imgRatio;
+  } else {
+    drawH = canvasH;
+    drawW = canvasH * imgRatio;
+  }
+
+  drawW *= scale;
+  drawH *= scale;
+
+  const dx = (canvasW - drawW) / 2;
+  const dy = (canvasH - drawH) / 2;
+
+  ctx.drawImage(img, dx, dy, drawW, drawH);
+}
+
+/* ==========================================
+ * 🔊 撮影時エフェクト（音＋フラッシュ＋ボタン縮小）
+ * ========================================== */
+function playShotEffect() {
+  // 💡 ボタンを凹ませる演出
+  captureBtn.classList.add('press');
+  setTimeout(() => captureBtn.classList.remove('press'), 120);
+
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    const audioCtx = new AudioContext();
+    const bufferSize = audioCtx.sampleRate * 0.12;
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+
+    const noiseNode = audioCtx.createBufferSource();
+    noiseNode.buffer = buffer;
+
+    const filterNode = audioCtx.createBiquadFilter();
+    filterNode.type = 'bandpass';
+    filterNode.frequency.value = 1100;
+    filterNode.Q.value = 3;
+
+    const gainNode = audioCtx.createGain();
+    gainNode.gain.setValueAtTime(0.5, audioCtx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+
+    noiseNode.connect(filterNode);
+    filterNode.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    noiseNode.start();
+  } catch (e) {
+    console.log("Audio API Error:", e);
+  }
+
+  shotEffect.style.opacity = '0.9';
+  setTimeout(() => {
+    shotEffect.style.opacity = '0';
+  }, 120);
+}
+
+/* ==========================================
+ * 📸 撮影処理（100%オリジナルの座布団・日付印字を維持）
+ * ========================================== */
+captureBtn.addEventListener('click', () => {
+  setAppHeight();
+
+  if (!video.videoWidth || !video.videoHeight) {
+    alert('カメラ映像が取得できませんでした');
+    return;
+  }
+
+  if (!frameImg.complete || !frameImg.naturalWidth) {
+    alert('フレーム画像がまだ読み込まれていません');
+    return;
+  }
+
+  // シャッター演出実行
+  playShotEffect();
+
+  const canvas = document.createElement('canvas');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  const ctx = canvas.getContext('2d');
+
+  // 1. ビデオ映像とフレームを合成
+  drawCoverVideo(ctx, video, canvas.width, canvas.height);
+  drawScaledContainImage(ctx, frameImg, canvas.width, canvas.height, frameScale);
+
+  // 💡 2. 【アップデート】和暦日付＋カスタムテキスト＆二重線装飾の座布団処理
+  const now = new Date();
+  
+  // 日本の文字表記（和暦・令和）に変換
+  const formatter = new Intl.DateTimeFormat('ja-JP-u-ca-japanese', {
+    era: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+  
+  // 💡【テキスト追加】お好みのテキストを後ろに結合します
+  const customText = " 入籍しました"; // ◀ ここを変更すれば好きな文字に変えられます
+  const dateString = formatter.format(now) + customText; // 「令和8年6月22日 入籍しました」
+
+  // テキストの基本スタイル設定
+  ctx.font = "bold 24px 'Hiragino Mincho ProN', 'Hiragino Mincho Pro', 'Noto Serif JP', 'MS Mincho', serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "bottom";
+
+  // 座布団（背景の四角形）を描画するための計算
+  const textWidth = ctx.measureText(dateString).width; // 文字の正確な横幅を計算
+  const paddingX = 32;  // 左右の余白（装飾線を入れるため少し広めに設定）
+  const paddingY = 14;  // 上下の余白
+  
+  const boxW = textWidth + (paddingX * 2); // 座布団の総横幅
+  const boxH = 24 + (paddingY * 2);       // 座布団の総縦幅
+  
+  const boxX = (canvas.width - boxW) / 2; // 座布団の左端X座標
+  const boxY = canvas.height - 30 - boxH;  // 座布団の上端Y座標
+
+  // ーーー 座布団の描画 ーーー
+  // ① ベースの半透明黒ボックス
+  ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
+  ctx.fillRect(boxX, boxY, boxW, boxH);
+
+  // ② 【装飾】座布団の内側にゴールドの飾り枠線（細い二重枠風）を描く
+  ctx.strokeStyle = "rgba(212, 175, 55, 0.8)"; // 💡上品なゴールド色（金色）
+  ctx.lineWidth = 1.5; // 線の太さ
+  
+  // 外側の四角形（座布団のフチから4px内側）
+  const borderGap1 = 4;
+  ctx.strokeRect(boxX + borderGap1, boxY + borderGap1, boxW - (borderGap1 * 2), boxH - (borderGap1 * 2));
+  
+  // 内側の四角形（さらに3px内側。これで和風の二重線になります）
+  const borderGap2 = 7;
+  ctx.lineWidth = 0.8; // 内側は少し細くして繊細に
+  ctx.strokeRect(boxX + borderGap2, boxY + borderGap2, boxW - (borderGap2 * 2), boxH - (borderGap2 * 2));
+
+  // ーーー 文字の描画 ーーー
+  ctx.fillStyle = "#ffffff"; // 文字の色（白）
+  
+  // 文字の立体感を出すシャドウ（白文字用）
+  ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+  ctx.shadowBlur = 3;
+  ctx.shadowOffsetX = 1;
+  ctx.shadowOffsetY = 1;
+
+  // 文字を配置
+  ctx.fillText(dateString, canvas.width / 2, canvas.height - 30 - paddingY);
+
+  // 次の描画に影響が出ないよう、設定をリセット
+  ctx.shadowColor = "transparent";
+
+  // 3. データ生成とプレビュー表示
+  currentDataUrl = canvas.toDataURL('image/png'); // 💡 共有用にグローバル変数へ代入
+
+  previewImg.src = currentDataUrl;
+  saveBtn.href = currentDataUrl;
+  
+  // 💡 保存用のファイル名生成に必要な変数をここで再定義（エラー回避）
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  const timeStr = yyyy + mm + dd + "_" + String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0') + String(now.getSeconds()).padStart(2, '0');
+  saveBtn.download = `photo-frame_${timeStr}.png`;
+
+  // 💡 プレビュー画面をふわっと表示
+  preview.style.display = 'block';
+  setTimeout(() => preview.classList.add('show'), 30);
+});
+
+/* ==========================================
+ * 🔗 追加：シェアボタン処理 (Web Share API)
+ * ========================================== */
+shareBtn.addEventListener('click', async () => {
+  if (!currentDataUrl) return;
+
+  try {
+    const bin = atob(currentDataUrl.split(',')[1]);
+    const buffer = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) {
+      buffer[i] = bin.charCodeAt(i);
+    }
+    const blob = new Blob([buffer], { type: 'image/png' });
+    const file = new File([blob], 'photo-frame.png', { type: 'image/png' });
+
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({
+        files: [file],
+        title: '入籍フォトフレーム',
+        text: 'フォトフレームで記念撮影したよ！'
+      });
+    } else {
+      alert('お使いのブラウザ・環境は画像のシステム共有に対応していません。画像を長押し保存するか、「保存する」ボタンから保存したあとにシェアしてください。');
+    }
+  } catch (err) {
+    if (err.name !== 'AbortError') {
+      console.error('Share Error:', err);
+      alert('シェア処理中にエラーが発生しました。');
+    }
+  }
+});
+
+/* ==========================================
+ * 🔄 UIイベントの紐付け
+ * ========================================== */
+retakeBtn.addEventListener('click', () => {
+  preview.classList.remove('show');
+  setTimeout(() => {
+    preview.style.display = 'none';
+  }, 300);
+});
+
+saveBtn.addEventListener('click', () => {
+  saveToast.classList.add('show');
+
+  setTimeout(() => {
+    saveToast.classList.remove('show');
+    preview.classList.remove('show');
+    setTimeout(() => {
+      preview.style.display = 'none';
+    }, 300);
+  }, 1600);
+});
+
+flipBtn.addEventListener('click', () => {
+  facingMode = facingMode === 'environment' ? 'user' : 'environment';
+  startCamera();
+});
+
+// 初回起動
+startCamera();
+</script>
+
+</body>
+</html>

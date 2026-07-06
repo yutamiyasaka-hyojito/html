@@ -1,0 +1,121 @@
+
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>ARリーダー</title>
+
+<script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+
+<style>
+html, body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+}
+
+video {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  object-fit: cover !important;
+  z-index: 1 !important;
+  display: block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+a-scene,
+a-scene canvas,
+.a-canvas {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  background: transparent !important;
+  z-index: 2 !important;
+}
+
+.status {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 9999;
+  background: rgba(0,0,0,.6);
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 999px;
+  font-size: 14px;
+}
+
+.a-enter-vr,
+.a-enter-ar {
+  display: none !important;
+}
+</style>
+</head>
+
+<body>
+
+<div class="status" id="status">
+ターゲット画像を読み込んでください
+</div>
+
+<a-scene
+  embedded
+  mindar-image="imageTargetSrc: img/targets_nu.mind; autoStart: true;"
+  color-space="sRGB"
+  renderer="alpha: true; antialias: true;"
+  vr-mode-ui="enabled: false"
+  device-orientation-permission-ui="enabled: false"
+>
+  <a-camera
+    position="0 0 0"
+    look-controls="enabled: false">
+  </a-camera>
+
+  <a-entity
+    id="target"
+    mindar-image-target="targetIndex: 0">
+  </a-entity>
+
+</a-scene>
+
+<script>
+const statusEl = document.getElementById('status');
+const target = document.getElementById('target');
+
+let locked = false;
+
+target.addEventListener('targetFound', () => {
+
+  if (locked) return;
+
+  locked = true;
+
+  statusEl.textContent = '読み込み中...';
+
+  console.log('TARGET FOUND');
+
+  setTimeout(() => {
+    location.href = 'normal.html';
+  }, 300);
+
+});
+
+target.addEventListener('targetLost', () => {
+
+  if (!locked) {
+    statusEl.textContent = 'ターゲット画像を読み込んでください';
+  }
+
+});
+</script>
+
+</body>
+</html>
