@@ -107,7 +107,7 @@ body {
   text-align: center;
   white-space: nowrap;
   box-sizing: border-box;
-  transform 0.1s ease;
+  transition: transform 0.1s ease;
 }
 
 #dateWrapper:active #dragDatePreview {
@@ -128,7 +128,6 @@ body {
   z-index: 60;
   user-select: none;
   pointer-events: none;
-
 }
 
 .drag-handle-btn img {
@@ -142,7 +141,7 @@ body {
   right: -16px;
   width: 32px;
   height: 32px;
-  background:rgba(0, 0, 0, 0.85);
+  background: rgba(0, 0, 0, 0.85);
   color: #fff;
   border-radius: 50%;
   font-weight: bold;
@@ -157,18 +156,6 @@ body {
 .close-box-btn img {
   width: 14px;
   height: 14px;
-}
-
-@keyframes gentle-pulse {
-  0% { box-shadow: 0 0 4px rgba(255, 255, 255, 0.2), 0 4px 12px rgba(0,0,0,0.3); }
-  50% { box-shadow: 0 0 12px rgba(255, 255, 255, 0.6), 0 4px 16px rgba(0,0,0,0.4); }
-  100% { box-shadow: 0 0 4px rgba(255, 255, 255, 0.2), 0 4px 12px rgba(0,0,0,0.3); }
-}
-
-@keyframes gentle-handle-pulse {
-  0% { box-shadow: 0 0 4px rgba(0, 195, 0, 0.4), 0 2px 6px rgba(0,0,0,0.3); }
-  50% { box-shadow: 0 0 12px rgba(0, 195, 0, 0.8), 0 2px 8px rgba(0,0,0,0.4); }
-  100% { box-shadow: 0 0 4px rgba(0, 195, 0, 0.4), 0 2px 6px rgba(0,0,0,0.3); }
 }
 
 /* 画面全体に重ねる古写真用フィルターオーバーレイ */
@@ -204,11 +191,15 @@ body {
 .filter-old-photo .old-photo-filter { display: block; }
 
 .filter-retro-print #cameraVideo, .filter-retro-print .frame-stage {
-  filter: saturate(1.2) contrast(0.95) brightness(1.02) sepia(0.2) hue-rotate(-10deg) blur(0.3px);
+  filter: saturate(1.6) contrast(1.1) brightness(0.98) sepia(0.35) hue-rotate(-15deg) blur(0.5px);
 }
 
 .filter-heisei-album #cameraVideo, .filter-heisei-album .frame-stage {
-  filter: contrast(1.15) brightness(1.05) saturate(0.85) sepia(0.05);
+  filter: contrast(1.3) brightness(1.15) saturate(0.7) sepia(0.1);
+}
+
+.filter-monochrome #cameraVideo, .filter-monochrome .frame-stage {
+  filter: grayscale(1) contrast(1.2) brightness(0.95);
 }
 
 .ui {
@@ -234,7 +225,6 @@ body {
   position: fixed;
   bottom: 16px;
   right: 66px;  
-  padding: 0px 0px;
   width: 42px;
   height: 42px;
   border: none; border-radius: 50%;
@@ -243,8 +233,6 @@ body {
   display: flex; justify-content: center; align-items: center;
   transition: transform 0.1s ease;
 }
-
-
 
 .menu-toggle-btn {
   position: fixed;
@@ -280,7 +268,7 @@ body {
   background: rgba(255,255,255,.75);
   box-shadow: 0 4px 10px rgba(0,0,0,0.3);
   pointer-events: auto;
-   display: flex;
+  display: flex;
   justify-content: center;
   align-items: center;
   cursor: pointer;
@@ -316,8 +304,6 @@ body {
   background: #ffcc00; color: #000; font-weight: bold;
 }
 
-
-
 .shutter {
   width: 68px; height: 68px;
   position: fixed; bottom: 16px; left: 50%;
@@ -330,12 +316,12 @@ body {
 
 /* 上部コンテナ */
 .top-config-container {
-  position: fixed; top: 0; left: 50%;
-  transform: translateX(-50%) translateY(0);
-  z-index: 1000; display: flex; flex-direction: column; align-items: center;
+  position: fixed; top: 0; 
+  left: 0; right: 0; margin: 0 auto; 
+  transform: translateY(0);
+  z-index: 1000;
   transition: transform 0.3s cubic-bezier(0.1, 0.76, 0.55, 0.94);
   width: 85vw; max-width: 400px; box-sizing: border-box;
-  display: block;
 }
 
 .toggle-top-btn {
@@ -362,12 +348,12 @@ body {
 .toggle-switch-label input:checked + .toggle-switch-slider { background-color: #00c300; border-color: #00a000; }
 .toggle-switch-label input:checked + .toggle-switch-slider:before { transform: translateX(24px); }
 
-/* 下部フレーム選択専用コンテナ */
+/* 下部選択コンテナ共通（初期状態は両方 display: none） */
 .frame-selector-container {
   position: fixed; bottom: 135px; left: 50%;
   transform: translateX(-50%) translateY(0);
-  z-index: 999; display: flex; flex-direction: column; align-items: center; gap: 8px;
-  transition: opacity 0.3s ease, transform 0.3s ease;
+  z-index: 999; display: none; flex-direction: column; align-items: center; gap: 8px;
+  transition: opacity 0.3s ease;
   width: 85vw; max-width: 400px; box-sizing: border-box;
 }
 
@@ -382,22 +368,40 @@ body {
 .frame-dot img { width: 100%; height: 100%; object-fit: cover; }
 .frame-dot.active { transform: scale(1.1); border-color: #ffcc00; box-shadow: 0 0 10px rgba(255, 204, 0, 0.9); }
 
-.toggle-selector-btn {
+/* ツインタブ用のボトムコンテナ */
+.bottom-tabs-container {
   position: fixed;
   bottom: 100px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 1000; /* コンテナより前面に */
+  z-index: 998;
+  display: flex;
+  gap: 8px;
+}
+
+.toggle-selector-btn {
+  position: static !important;
+  transform: none !important;
+  margin: 0;
   border: none; background: rgba(0, 0, 0, 0.85); color: #fff; border-radius: 999px;
   padding: 8px 16px; font-size: 11px; font-weight: bold; letter-spacing: 0.05em; cursor: pointer;
   display: flex; align-items: center; gap: 4px;
   box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+  width: 120px;
 }
 
-
-
-.config-panel-content { width: 100%; display: flex; flex-direction: column; gap: 8px; font-size: 12px; color: #fff;background: rgba(0, 0, 0, 0.9);border-radius: 0 0 16px 16px;
-  padding: 12px; }
+.config-panel-content { 
+  width: 100%; 
+  box-sizing: border-box; 
+  display: flex; 
+  flex-direction: column; 
+  gap: 8px; 
+  font-size: 12px; 
+  color: #fff;
+  background: rgba(0, 0, 0, 0.9);
+  border-radius: 0 0 16px 16px;
+  padding: 12px; 
+}
 .config-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .config-row select, .config-row input[type="color"], .config-row input[type="text"] {
   background: #222; color: #fff; border: 1px solid #555; border-radius: 4px; padding: 2px 6px; font-size: 12px;
@@ -406,7 +410,6 @@ body {
 
 .preview {
   position: fixed; inset: 0; z-index: 99999; background: rgba(0, 0, 0, 0.95); display: none; opacity: 0; transition: opacity 0.3s ease;
-  
 }
 .preview.show { display: block; opacity: 1; }
 .preview img {
@@ -426,7 +429,7 @@ body {
 #shareBtn { background: #00c300; color: #fff; }
 
 #saveToast, #msgToast {
-  position: fixed; left: 50%; bottom: 120px; transform: translateX(-50%); background: rgba(0,0,0,.85); color: #fff; padding: 12px 24px; border-radius: 999px; font-size: 14px; z-index: 999999; opacity: 0; pointer-events: none; transition: .25s; text-align: center; white-space: nowrap;
+  position: fixed; left: 50%; bottom: 140px; transform: translateX(-50%); background: rgba(0,0,0,.85); color: #fff; padding: 12px 24px; border-radius: 999px; font-size: 14px; z-index: 999999; opacity: 0; pointer-events: none; transition: .25s; text-align: center; white-space: nowrap;
 }
 #saveToast.show, #msgToast.show { opacity: 1; }
 #shot-effect { position: fixed; inset: 0; background: #fff; opacity: 0; z-index: 50000; pointer-events: none; transition: opacity .1s ease-out; }
@@ -434,114 +437,167 @@ body {
 .nav-arrow {
   position: fixed; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border: none; border-radius: 50%; background: rgba(0, 0, 0, 0.4); color: #fff; font-size: 20px; font-weight: bold; display: flex; justify-content: center; align-items: center; z-index: 998; cursor: pointer; transition: opacity 0.2s, background 0.2s; box-shadow: 0 2px 6px rgba(0,0,0,0.2);
 }
-
-.nav-arrow img {
-  width: 24px;height: 24px;
-}
-
+.nav-arrow img { width: 24px; height: 24px; }
 .nav-arrow:active { background: rgba(0, 0, 0, 0.7); }
 .nav-arrow.prev { left: 12px; }
 .nav-arrow.next { right: 12px; }
 .preview.show ~ .nav-arrow { display: none !important; }
-/* 昭和プリントのプレビュー強化 */
-.filter-retro-print #cameraVideo, .filter-retro-print .frame-stage {
-  filter: saturate(1.6) contrast(1.1) brightness(0.98) sepia(0.35) hue-rotate(-15deg) blur(0.5px);
-}
 
-/* 平成アルバムのプレビュー強化 */
-.filter-heisei-album #cameraVideo, .filter-heisei-album .frame-stage {
-  filter: contrast(1.3) brightness(1.15) saturate(0.7) sepia(0.1);
-}
-
-/* モノクロ用のプレビューCSSを新規追加 */
-.filter-monochrome #cameraVideo, .filter-monochrome .frame-stage {
-  filter: grayscale(1) contrast(1.2) brightness(0.95);
-}
-
-
-
-
-
-
-
-/* メニュー非表示モードの時の切り替えボタン（これだけは消さずに文言や色を変える） */
+/* メニュー非表示モード */
 body.hide-ui-mode .menu-toggle-btn {
   background: rgba(0, 0, 0, 0.75);
   color: #fff;
   border: 1px solid rgba(255,255,255,0.3);
 }
 
-/* --- 💡 一括非表示の定義 (display: none) --- */
-body.hide-ui-mode #topConfigContainer,         /* 日付・文字作成パネル */
-body.hide-ui-mode .filter-btn,                /* 質感ボタン */
-body.hide-ui-mode #filterPopover,             /* 質感ポップオーバー */
-body.hide-ui-mode #flipBtn,                   /* 反転ボタン */
-body.hide-ui-mode #frameSelectorContainer,    /* 文字枠（フレーム選択）の両アイコン・コンテナ */
-body.hide-ui-mode #toggleSelectorBtn,         /* フレーム選択トグルボタン */
+body.hide-ui-mode #topConfigContainer,
+body.hide-ui-mode .filter-btn,
+body.hide-ui-mode #filterPopover,
+body.hide-ui-mode #flipBtn,
+body.hide-ui-mode .frame-selector-container,
+body.hide-ui-mode .bottom-tabs-container,
 body.hide-ui-mode .help-btn,
-body.hide-ui-mode .drag-handle-btn,           /* 💡 追加：文字枠の左上アイコン (✥) */
-body.hide-ui-mode .close-box-btn,             /* 💡 追加：文字枠の右上アイコン (×) */
+body.hide-ui-mode .drag-handle-btn,
+body.hide-ui-mode .close-box-btn,
 body.hide-ui-mode .nav-arrow,
-body.hide-ui-mode .filter-trigger-btn {                
+body.hide-ui-mode .filter-trigger-btn {
   display: none !important;
 }
 
-/* 文字枠（日付枠）の白く光るエフェクト（アニメーションなど）を消す */
 body.hide-ui-mode #dragDatePreview {
   animation: none !important;
   box-shadow: none !important;
   outline: none !important;
   cursor: default !important;
-  /* ※枠線 border や背景色は維持されます */
-}
-
-/* --- 💡 使い方ポップアップのモーダルスタイル --- */
-.help-modal {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  z-index: 100000;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.3s ease;
-}
-.help-modal.show {
-  opacity: 1;
-  pointer-events: auto;
-}
-.help-modal-content {
-  background: #fff;
-  color: #333;
-  width: 85vw;
-  max-width: 340px;
-  padding: 24px;
-  border-radius: 16px;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.3);
-  text-align: center;
-  transform: scale(0.85);
-  transition: transform 0.3s ease;
-}
-.help-modal.show .help-modal-content {
-  transform: scale(1);
-}
-.help-modal-close {
-  border: none;
-  background: #333;
-  color: #fff;
-  padding: 10px 24px;
-  border-radius: 999px;
-  font-size: 14px;
-  font-weight: bold;
-  cursor: pointer;
-  width: 100%;
 }
 body.hide-ui-mode #dragDatePreview:active {
   transform: translate(var(--x, 0px), var(--y, 0px)) scale(1) !important;
-  /* 元々の位置(translate)は維持しつつ、scale(0.98) などの縮小を等倍(1)にして無効化 */
 }
+
+/* ヘルプモーダル */
+.help-modal {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.6); z-index: 100000; display: flex; justify-content: center; align-items: center; opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+}
+.help-modal.show { opacity: 1; pointer-events: auto; }
+.help-modal-content {
+  background: #fff; color: #333; width: 85vw; max-width: 340px; padding: 24px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); text-align: center; transform: scale(0.85); transition: transform 0.3s ease;
+}
+.help-modal.show .help-modal-content { transform: scale(1); }
+.help-modal-close { border: none; background: #333; color: #fff; padding: 10px 24px; border-radius: 999px; font-size: 14px; font-weight: bold; cursor: pointer; width: 100%; }
+
+/* スタンプ要素 */
+.stamp-thumb:active {
+  transform: scale(0.9);
+}
+
+.placed-stamp-wrapper {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 45;
+  pointer-events: auto;
+  display: inline-block;
+  cursor: move;
+  padding: 8px;
+}
+
+.placed-stamp-wrapper .drag-handle-btn {
+  position: absolute;
+  top: -14px;
+  left: -14px;
+  width: 32px;
+  height: 32px;
+  background: none;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: move;
+  z-index: 60;
+  user-select: none;
+  pointer-events: none;
+}
+.placed-stamp-wrapper .drag-handle-btn img {
+  width: 32px;
+  height: 32px;
+}
+
+.placed-stamp-img {
+  max-width: 120px;
+  height: auto;
+  display: block;
+  user-select: none;
+  pointer-events: none;
+}
+
+body.hide-ui-mode .placed-stamp-wrapper .close-box-btn,
+body.hide-ui-mode .placed-stamp-wrapper .drag-handle-btn {
+  display: none !important;
+}
+body.hide-ui-mode .placed-stamp-wrapper {
+  padding: 0;
+}
+
+#stampSelectorContainer .frame-dot{
+  width: 46px;
+  height: 46px;
+}
+
+#stampSelectorContainer .frame-dot img {
+  height: auto;
+}
+
+#msgToast {
+  white-space: normal !important; /* 改行（brタグ）を有効にする */
+  width: 80vw;                    /* 横幅にゆとりを持たせて綺麗に中央寄せにする */
+  max-width: 320px;
+  line-height: 1.4;
+}
+
+/* 中の黒いパネルだけがゴールドに一瞬フラッシュするアニメーション */
+@keyframes panel-flash {
+  0% {
+    box-shadow: none;
+    filter: brightness(1);
+  }
+  30% {
+    box-shadow: 0 0 25px #ffdd56;
+    filter: brightness(1.2);
+  }
+  100% {
+    box-shadow: none;
+    filter: brightness(1);
+  }
+}
+
+.panel-highlight-effect {
+  animation: panel-flash 0.5s ease-out;
+}
+
+.placed-stamp-wrapper .resize-handle-btn {
+  position: absolute;
+  bottom: -14px;
+  right: -14px;
+  width: 32px;
+  height: 32px;
+  background: none;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: se-resize;
+  z-index: 60;
+  user-select: none;
+}
+.placed-stamp-wrapper .resize-handle-btn img {
+  width: 32px;
+  height: 32px;
+}
+
+/* メニュー非表示モードの時は拡大縮小ハンドルも消す */
+body.hide-ui-mode .placed-stamp-wrapper .resize-handle-btn {
+  display: none !important;
+}
+
 </style>
 <link href="https://fonts.googleapis.com/css2?family=Alex+Brush&family=Noto+Sans+JP:wght@700&family=Noto+Serif+JP:wght@700&family=Share+Tech+Mono&family=Yuji+Syuku&family=Yomogi&display=swap" rel="stylesheet">
 </head>
@@ -558,6 +614,8 @@ body.hide-ui-mode #dragDatePreview:active {
       <div class="frame-item" id="item0"><img src="img/waku.png" class="frame-overlay" id="frameImg0" alt=""></div>
       <div class="frame-item" id="item1"><img src="img/frame1.png" class="frame-overlay" id="frameImg1" alt=""></div>
       <div class="frame-item" id="item2"><img src="img/frame2.png" class="frame-overlay" id="frameImg2" alt=""></div>
+      <div class="frame-item" id="item3"><img src="img/frame3.png" class="frame-overlay" id="frameImg3" alt=""></div>
+      
     </div>
   </div>
 </div>
@@ -584,9 +642,9 @@ body.hide-ui-mode #dragDatePreview:active {
         </label>
       </div>
       <div class="config-row" style="align-items: flex-start;">
-  <label style="margin-top: 6px;">カスタム文字:</label>
-  <textarea id="configCustomText" rows="2" style="flex: 1; resize: none; background: #222; color: #fff; border: 1px solid #555; border-radius: 4px; padding: 4px 6px; font-size: 12px; font-family: inherit;" placeholder="改行ボタンで複数行入力できます">文字を入力できます</textarea>
-</div>
+        <label style="margin-top: 6px;">カスタム文字:</label>
+        <textarea id="configCustomText" rows="2" style="flex: 1; resize: none; background: #222; color: #fff; border: 1px solid #555; border-radius: 4px; padding: 4px 6px; font-size: 12px; font-family: inherit;" placeholder="改行ボタンで複数行入力できます">文字を入力できます</textarea>
+      </div>
       <div class="config-row">
         <label>文字の位置:</label>
         <select id="configTextOrder">
@@ -614,22 +672,17 @@ body.hide-ui-mode #dragDatePreview:active {
         </select>
       </div>
       <div class="config-row">
-        
         <label>書体:</label>
         <select id="configFont">
-          <option value="'Noto Serif JP', serif">上品な明朝体</option>
-          <option value="'Yomogi', cursive">手書き風</option>
           <option value="'Noto Sans JP', sans-serif">モダンなゴシック</option>
+          <option value="'Noto Serif JP', serif">上品な明朝体</option>
+          <option value="'Yomogi', cursive">手書き風</option>          
           <option value="'Yuji Syuku', serif">筆文字風</option>
           <option value="'Share Tech Mono', monospace">デジタル</option>
         </select>
-
-        
         <label>文字色:</label>
         <input type="color" id="configTextColor" value="#ffffff">
-        
       </div>
-      
       <div class="config-row">
         <label>外枠線:</label>
         <select id="configHasBorder">
@@ -638,7 +691,6 @@ body.hide-ui-mode #dragDatePreview:active {
         </select>
         <label>枠線色:</label>
         <input type="color" id="configBorderColor" value="#d4af37">
-        
       </div>
       <div class="config-row">
         <label>背景色:</label>
@@ -668,27 +720,37 @@ body.hide-ui-mode #dragDatePreview:active {
 
   <div class="frame-selector-container" id="frameSelectorContainer">
     <div class="frame-selector">
-      <button class="frame-dot active" data-index="0">
-        <img src="img/waku.png" alt="フレーム1">
-      </button>
-      <button class="frame-dot" data-index="1">
-        <img src="img/frame1.png" alt="フレーム2">
-      </button>
-      <button class="frame-dot" data-index="2">
-        <img src="img/frame2.png" alt="フレーム3">
-      </button>
+      <button class="frame-dot active" data-index="0"><img src="img/waku.png" alt="フレーム1"></button>
+      <button class="frame-dot" data-index="1"><img src="img/frame1.png" alt="フレーム2"></button>
+      <button class="frame-dot" data-index="2"><img src="img/frame2.png" alt="フレーム3"></button>
+      <button class="frame-dot" data-index="3"><img src="img/frame3.png" alt="フレーム3"></button>
     </div>
-   
   </div>
- <button class="toggle-selector-btn" id="toggleSelectorBtn">
-      <span>フレーム選択</span><span id="toggleArrow">▲</span>
-    </button>
+
+  <div class="frame-selector-container" id="stampSelectorContainer">
+    <div class="frame-selector">
+      <button class="frame-dot stamp-thumb" data-src="img/stamp/oiwai.png"><img src="img/stamp/oiwai.png" alt="スタンプ1"></button>
+      <button class="frame-dot stamp-thumb" data-src="img/stamp/shuku.png"><img src="img/stamp/shuku.png" alt="スタンプ2"></button>
+      <button class="frame-dot stamp-thumb" data-src="img/stamp/sotugyou.png"><img src="img/stamp/sotugyou.png" alt="スタンプ3"></button>
+     
+    </div>
+  </div>
+
   <button class="btn" id="flipBtn">
     <img src="img/ico_hanten.png" alt="カメラ反転">
   </button>
   <button class="menu-toggle-btn" id="menuToggleBtn">メニュー非表示</button>
   <button class="help-btn" id="helpBtn"><img src="img/ico_info.png" alt="使い方"></button>
   <button class="shutter" id="captureBtn" aria-label="撮影"></button>
+
+  <div class="bottom-tabs-container">
+    <button class="toggle-selector-btn" id="toggleSelectorBtn">
+      <span>フレーム選択</span><span id="toggleArrow">▲</span>
+    </button>
+    <button class="toggle-selector-btn" id="toggleStampBtn">
+      <span>スタンプ選択</span><span id="stampToggleArrow">▲</span>
+    </button>
+  </div>
 </div>
 
 <div class="preview" id="preview">
@@ -696,12 +758,13 @@ body.hide-ui-mode #dragDatePreview:active {
   <div class="preview-ui">
     <button id="retakeBtn">撮り直し</button>
     <a id="saveBtn" href="#" download="photo-frame.png">保存する</a>
-    <button id="shareBtn">シェア</button> </div>
+    <button id="shareBtn">シェア</button>
+  </div>
 </div>
+
 <div class="help-modal" id="helpModal">
   <div class="help-modal-content">
     <h3>使い方</h3>
-    
     <button class="help-modal-close" id="helpModalCloseBtn">閉じる</button>
   </div>
 </div>
@@ -711,6 +774,5 @@ body.hide-ui-mode #dragDatePreview:active {
 <div id="shot-effect"></div>
 
 <script src="common.js"></script>
-
 </body>
 </html>

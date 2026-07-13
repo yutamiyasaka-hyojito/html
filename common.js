@@ -26,10 +26,14 @@ const saveToast = document.getElementById('saveToast');
 const msgToast = document.getElementById('msgToast');
 const shotEffect = document.getElementById('shot-effect');
 
+// 下部 UI 関連
 const selectorContainer = document.getElementById('frameSelectorContainer');
-const toggleSelectorBtn = document.getElementById('toggleSelectorBtn');
-const toggleArrow = document.getElementById('toggleArrow');
-const frameDots = document.querySelectorAll('.frame-dot');
+const stampContainer = document.getElementById('stampSelectorContainer');
+const frameBtn = document.getElementById('toggleSelectorBtn');
+const stampBtn = document.getElementById('toggleStampBtn');
+const frameArrow = document.getElementById('toggleArrow');
+const stampArrow = document.getElementById('stampToggleArrow');
+const frameDots = document.querySelectorAll('.frame-dot:not(.stamp-thumb)');
 const prevArrow = document.getElementById('prevArrow');
 const nextArrow = document.getElementById('nextArrow');
 
@@ -68,29 +72,92 @@ let startDistance = 0;
 let currentDataUrl = null;
 
 let currentFrameIndex = 0;
-const totalFrames = 3; 
+const totalFrames = 4; 
 let isAnimating = false;
 
 let datePercentX = 0.5; 
 let datePercentY = 0.70; 
-let activeFilter = 'none'; // 現在の選ばれている質感フィルター名
+let activeFilter = 'none';
+
+// デフォルトでフレームもスタンプも閉じた状態に設定
+let isFrameOpen = false;
+let isStampOpen = false;
+
+// 💡 拡大縮小（ピンチ）判定用の管理フラグ
+let isPinching = false;
+
+// 💡 案内メッセージ用の初回タップ判定フラグ
+let hasShownFirstTapMessage = false;
 
 /* ==========================================
- * 🔄 メニュー開閉の初期化
+ * 🔄 メニュー開閉・排他制御の初期化
  * ========================================== */
 function initPanelPositions() {
   const contentHeight = topConfigContent.offsetHeight;
-  // 💡 +30px 余分に引き上げることで、見切れる背景を画面外に完全に隠します
-  topConfigContainer.style.transform = `translateX(-50%) translateY(-${contentHeight + 30}px)`;
+  // 💡 不要な translateX(-50%) を完全に削除し、純粋に上に隠すアニメーションにします
+  topConfigContainer.style.transform = `translateY(-${contentHeight + 30}px)`;
   topConfigContainer.classList.add('hidden');
   topToggleArrow.textContent = '▼';
 
-  selectorContainer.classList.add('hidden');
-  selectorContainer.style.opacity = '0';
-  selectorContainer.style.pointerEvents = 'none';
-  toggleArrow.textContent = '▲';
+  updateSelectorVisibility();
 }
 setTimeout(initPanelPositions, 300);
+
+function updateSelectorVisibility() {
+  if (isFrameOpen) {
+    selectorContainer.style.display = 'flex';
+    selectorContainer.style.opacity = '1';
+    selectorContainer.style.pointerEvents = 'auto';
+    frameArrow.textContent = '▼';
+  } else {
+    selectorContainer.style.display = 'none';
+    selectorContainer.style.opacity = '0';
+    selectorContainer.style.pointerEvents = 'none';
+    frameArrow.textContent = '▲';
+  }
+
+  if (isStampOpen) {
+    stampContainer.style.display = 'flex';
+    stampContainer.style.opacity = '1';
+    stampContainer.style.pointerEvents = 'auto';
+    stampArrow.textContent = '▼';
+  } else {
+    stampContainer.style.display = 'none';
+    stampContainer.style.opacity = '0';
+    stampContainer.style.pointerEvents = 'none';
+    stampArrow.textContent = '▲';
+  }
+}
+
+frameBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  isFrameOpen = !isFrameOpen;
+  if (isFrameOpen) isStampOpen = false;
+  updateSelectorVisibility();
+
+  const isCurrentlyHidden = topConfigContainer.classList.contains('hidden');
+  if (isFrameOpen && !isCurrentlyHidden) {
+    const contentHeight = topConfigContent.offsetHeight;
+    topConfigContainer.style.transform = `translateY(-${contentHeight + 30}px)`; 
+    topConfigContainer.classList.add('hidden'); 
+    topToggleArrow.textContent = '▼';
+  }
+});
+
+stampBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  isStampOpen = !isStampOpen;
+  if (isStampOpen) isFrameOpen = false;
+  updateSelectorVisibility();
+
+  const isCurrentlyHidden = topConfigContainer.classList.contains('hidden');
+  if (isStampOpen && !isCurrentlyHidden) {
+    const contentHeight = topConfigContent.offsetHeight;
+    topConfigContainer.style.transform = `translateY(-${contentHeight + 30}px)`; 
+    topConfigContainer.classList.add('hidden'); 
+    topToggleArrow.textContent = '▼';
+  }
+});
 
 /* ==========================================
  * 🎨 質感フィルター選択のポップオーバー制御
@@ -106,10 +173,9 @@ filterTriggerBtn.addEventListener('click', (e) => {
     topConfigContainer.classList.add('hidden');
     topToggleArrow.textContent = '▼';
     
-    selectorContainer.classList.add('hidden');
-    selectorContainer.style.opacity = '0';
-    selectorContainer.style.pointerEvents = 'none';
-    toggleArrow.textContent = '▲';
+    isFrameOpen = false;
+    isStampOpen = false;
+    updateSelectorVisibility();
   }
 });
 
@@ -143,9 +209,9 @@ let hasMoved = false;
 
 dateWrapper.addEventListener('touchstart', (e) => { 
   e.stopPropagation(); 
-  if (e.touches.length === 1) {
-    dragStartPos.x = e.touches[0].clientX;
-    dragStartPos.y = e.touches[0].clientY;
+  if (e.touches.length === 1) { 
+    dragStartPos.x = e.touches[0].clientX; 
+    dragStartPos.y = e.touches[0].clientY; 
     hasMoved = false;
   }
 }, { passive: true });
@@ -169,24 +235,37 @@ dateWrapper.addEventListener('touchmove', (e) => {
 dateWrapper.addEventListener('touchend', (e) => {
   e.stopPropagation();
   if (document.body.classList.contains('hide-ui-mode')) return; 
+  if (isPinching) return; // 拡大縮小中は作成コーナーの動作を完全ブロック
 
   if (!hasMoved) {
     const isHidden = topConfigContainer.classList.contains('hidden');
+    
     if (isHidden) {
+      // 【閉じていた場合】作成コーナーを開く
       topConfigContainer.classList.remove('hidden');
-      topConfigContainer.style.transform = `translateX(-50%) translateY(0)`;
+      topConfigContainer.style.transform = 'translateY(0)';
       topToggleArrow.textContent = '▲';
       
-      selectorContainer.classList.add('hidden');
-      selectorContainer.style.opacity = '0';
-      selectorContainer.style.pointerEvents = 'none';
-      toggleArrow.textContent = '▲';
-   } else {
-      const contentHeight = topConfigContent.offsetHeight;
-      // 💡 ここも同様に +30px して完全に隠します
-      topConfigContainer.style.transform = `translateX(-50%) translateY(-${contentHeight + 30}px)`;
-      topConfigContainer.classList.add('hidden');
-      topToggleArrow.textContent = '▼';
+      isFrameOpen = false;
+      isStampOpen = false;
+      updateSelectorVisibility();
+    } else {
+      // 【すでに開いていた場合】中の黒いパネル（topConfigContent）だけを一瞬ピカッと光らせる
+      topConfigContent.classList.remove('panel-highlight-effect');
+      void topConfigContent.offsetWidth; // 再描画を促すおまじない
+      topConfigContent.classList.add('panel-highlight-effect');
+    }
+
+    // 初回タップ時のみの案内トースト表示（途中で改行を挟みました）
+    if (!hasShownFirstTapMessage) {
+      hasShownFirstTapMessage = true; // 次回以降は表示しない
+
+      msgToast.innerHTML = '上部の「日付・文字枠作成」コーナーで、<br>テキストや枠、日付の形式などを編集できます。';
+      msgToast.classList.add('show');
+      
+      setTimeout(() => {
+        msgToast.classList.remove('show');
+      }, 4000);
     }
   }
 });
@@ -195,6 +274,15 @@ closeBoxBtn.addEventListener('click', (e) => {
   e.stopPropagation(); 
   configVisibility.checked = false;
   updateDatePreviewStyle();
+  
+  const isCurrentlyHidden = topConfigContainer.classList.contains('hidden');
+  if (!isCurrentlyHidden) {
+    const contentHeight = topConfigContent.offsetHeight;
+    topConfigContainer.style.transform = `translateY(-${contentHeight + 30}px)`; 
+    topConfigContainer.classList.add('hidden'); 
+    topToggleArrow.textContent = '▼';
+  }
+
   msgToast.textContent = "画面上部の作成コーナーで再度表示できます";
   msgToast.classList.add('show');
   setTimeout(() => { msgToast.classList.remove('show'); }, 3000);
@@ -220,7 +308,12 @@ setupOrder();
 function slideTo(direction, newIndex) {
   if (isAnimating) return;
   isAnimating = true;
-
+  frameScale = 1;
+  
+  for (let i = 0; i < totalFrames; i++) {
+    const img = document.getElementById(`frameImg${i}`);
+    if (img) img.style.transform = 'scale(1)';
+  }
   if (direction === 'direct') {
     if (newIndex === currentFrameIndex) { isAnimating = false; return; }
     const forwardDist = (newIndex - currentFrameIndex + totalFrames) % totalFrames;
@@ -265,7 +358,7 @@ flipBtn.addEventListener('click', () => {
 });
 
 /* ==========================================
- * 👆 カルーセルスワイプジェスチャー
+ * 👆 カルーセルスワイプジェスチャー & ピンチ制御
  * ========================================== */
 let touchStartX = 0; let touchStartY = 0;
 window.addEventListener('touchstart', e => {
@@ -275,7 +368,9 @@ window.addEventListener('touchstart', e => {
       e.target.closest('.frame-selector-container') ||
       e.target.closest('.btn') ||
       e.target.closest('.shutter') ||
-      e.target.closest('#dateWrapper')) {
+      e.target.closest('.bottom-tabs-container') ||
+      e.target.closest('#dateWrapper') ||
+      e.target.closest('.placed-stamp-wrapper')) {
     return;
   }
 
@@ -285,6 +380,7 @@ window.addEventListener('touchstart', e => {
   }
   else if (e.touches.length === 2) { 
     e.preventDefault(); 
+    isPinching = true; 
     startDistance = getDistance(e.touches); 
     startScale = frameScale; 
   }
@@ -300,13 +396,19 @@ window.addEventListener('touchmove', e => {
 }, { passive: false });
 
 window.addEventListener('touchend', e => {
+  if (e.touches.length < 2) {
+    setTimeout(() => { isPinching = false; }, 100);
+  }
+
   if (e.target.closest('.top-config-container') || 
       e.target.closest('#filterTriggerBtn') || 
       e.target.closest('#filterPopover') || 
       e.target.closest('.frame-selector-container') ||
       e.target.closest('.btn') ||
       e.target.closest('.shutter') ||
-      e.target.closest('#dateWrapper')) {
+      e.target.closest('.bottom-tabs-container') ||
+      e.target.closest('#dateWrapper') ||
+      e.target.closest('.placed-stamp-wrapper')) {
     return;
   }
 
@@ -405,13 +507,11 @@ captureBtn.addEventListener('click', () => {
   }
 
   // 📸 文字枠描画
-// 📸 文字枠描画（257行目付近〜）
   if (configVisibility.checked) {
     const dateString = generateFullText();
     const size = parseInt(configFontSize.value || "16", 10);
     ctx.font = `bold ${size}px ${configFont.value}`;
 
-    // 💡 縦書きモードかどうかの判定
     const isVertical = (configFormat.value === 'kanji-vertical');
     const lines = dateString.split("\n");
 
@@ -419,16 +519,14 @@ captureBtn.addEventListener('click', () => {
     const lineHeight = size * 1.4;
 
     if (isVertical) {
-      // 💡 縦書き用のサイズ計算
       let maxLineHeight = 0;
       lines.forEach(line => {
-        const h = line.length * size; // 文字数 × フォントサイズが1行の高さ
+        const h = line.length * size;
         if (h > maxLineHeight) maxLineHeight = h;
       });
-      boxH = maxLineHeight + 64; // 上下パディング
-      boxW = (lines.length * lineHeight) - (lineHeight - size) + 28; // 左右パディング
+      boxH = maxLineHeight + 64;
+      boxW = (lines.length * lineHeight) - (lineHeight - size) + 28;
     } else {
-      // 横書き用のサイズ計算
       let maxLineWidth = 0;
       lines.forEach(line => {
         const w = ctx.measureText(line).width;
@@ -456,7 +554,6 @@ captureBtn.addEventListener('click', () => {
     ctx.fillStyle = configTextColor.value;
 
     if (isVertical) {
-      // 💡 縦書きでのレンダリング（右の行から順に描画）
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
       const startX = targetCenterX + ((lines.length - 1) * lineHeight) / 2;
@@ -467,9 +564,7 @@ captureBtn.addEventListener('click', () => {
         const startY = targetCenterY - (chars.length * size) / 2;
 
         chars.forEach((char, charIndex) => {
-          // 各文字の中心Y座標を算出して配置
           const currentLineY = startY + (charIndex * size) + (size / 2);
-          
           if (activeFilter === 'retro-print' && configFont.value.includes('Share Tech')) {
             ctx.save(); ctx.shadowColor = "rgba(255, 70, 0, 1)"; ctx.shadowBlur = 6;
             ctx.fillText(char, currentLineX, currentLineY); ctx.restore();
@@ -479,7 +574,6 @@ captureBtn.addEventListener('click', () => {
         });
       });
     } else {
-      // 既存の横書き描画
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       const startY = targetCenterY - ((lines.length - 1) * lineHeight) / 2 + 1;
@@ -494,6 +588,27 @@ captureBtn.addEventListener('click', () => {
         }
       });
     }
+    const placedStamps = document.querySelectorAll('.placed-stamp-wrapper');
+    placedStamps.forEach(stampWrapper => {
+      const stampImg = stampWrapper.querySelector('.placed-stamp-img');
+      if (!stampImg || !stampImg.complete) return;
+
+      const rect = stampWrapper.getBoundingClientRect();
+      const percentX = (rect.left + rect.width / 2) / window.innerWidth;
+      const percentY = (rect.top + rect.height / 2) / window.innerHeight;
+
+      const targetCenterX = percentX * canvas.width;
+      const targetCenterY = percentY * canvas.height;
+
+      const scaleFactor = canvas.width / window.innerWidth;
+      const drawW = rect.width * scaleFactor;
+      const drawH = rect.height * scaleFactor;
+
+      const drawX = targetCenterX - drawW / 2;
+      const drawY = targetCenterY - drawH / 2;
+
+      ctx.drawImage(stampImg, drawX, drawY, drawW, drawH);
+    });
   }
 
   currentDataUrl = canvas.toDataURL('image/png');
@@ -509,6 +624,31 @@ captureBtn.addEventListener('click', () => {
 retakeBtn.addEventListener('click', () => {
   preview.classList.remove('show');
   setTimeout(() => { preview.style.display = 'none'; }, 300);
+});
+
+shareBtn.addEventListener('click', async () => {
+  if (!currentDataUrl) return;
+
+  try {
+    const response = await fetch(currentDataUrl);
+    const blob = await response.blob();
+    const file = new File([blob], "photo-frame.png", { type: "image/png" });
+
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({
+        files: [file],
+        title: '日付付きフォトフレーム',
+        text: '新しく写真を撮影しました！'
+      });
+    } else {
+      alert('お使いのブラウザ・端末は、写真の直接シェアに対応していません。画像を保存してからシェアしてください。');
+    }
+  } catch (error) {
+    if (error.name !== 'AbortError') {
+      console.error('シェアに失敗しました:', error);
+      alert('シェア処理中にエラーが発生しました。');
+    }
+  }
 });
 
 function drawCoverVideo(ctx, video, canvasW, canvasH) {
@@ -530,58 +670,33 @@ function drawScaledContainImage(ctx, img, canvasW, canvasH, scale) {
 /* ==========================================
  * 🔄 UI開閉制御イベント
  * ========================================== */
-toggleSelectorBtn.addEventListener('click', (e) => {
-  e.stopPropagation();
-  const isCurrentlyHidden = selectorContainer.classList.contains('hidden');
-  if (isCurrentlyHidden) {
-    selectorContainer.classList.remove('hidden');
-    selectorContainer.style.opacity = '1';
-    selectorContainer.style.pointerEvents = 'auto';
-    toggleArrow.textContent = '▼';
-    
-    const contentHeight = topConfigContent.offsetHeight;
-    // 💡 犯人はここでした！「+ 30」を追加して、フレーム選択を開いた時に上部がズレるのを完全に防ぎます！
-    topConfigContainer.style.transform = `translateX(-50%) translateY(-${contentHeight + 30}px)`;
-    topConfigContainer.classList.add('hidden'); topToggleArrow.textContent = '▼';
-  } else {
-    selectorContainer.classList.add('hidden');
-    selectorContainer.style.opacity = '0';
-    selectorContainer.style.pointerEvents = 'none';
-    toggleArrow.textContent = '▲';
-  }
-});
-
 toggleTopBtn.addEventListener('click', (e) => {
   e.stopPropagation();
   const isCurrentlyHidden = topConfigContainer.classList.contains('hidden');
   if (isCurrentlyHidden) {
     topConfigContainer.classList.remove('hidden');
-    topConfigContainer.style.transform = `translateX(-50%) translateY(0)`; 
+    topConfigContainer.style.transform = 'translateY(0)';
     topToggleArrow.textContent = '▲';
     
-    // 💡 【重要】作成コーナーを開いたとき、日付枠がOFFになっていたら自動でON（復活）にする
-    if (!configVisibility.checked) {
-      configVisibility.checked = true;
-    }
-    updateDatePreviewStyle(); // 画面に復活を即時反映
+    if (!configVisibility.checked) { configVisibility.checked = true; }
+    updateDatePreviewStyle();
 
-    selectorContainer.classList.add('hidden');
-    selectorContainer.style.opacity = '0';
-    selectorContainer.style.pointerEvents = 'none';
-    toggleArrow.textContent = '▲';
+    isFrameOpen = false;
+    isStampOpen = false;
+    updateSelectorVisibility();
   } else {
     const contentHeight = topConfigContent.offsetHeight;
-    // 💡 閉じる時に +30px して完全に画面外へ隠します
-    topConfigContainer.style.transform = `translateX(-50%) translateY(-${contentHeight + 30}px)`; 
+    // 💡 修正：translateX(-50%) を完全に消去し、純粋に translateY だけにします
+    topConfigContainer.style.transform = `translateY(-${contentHeight + 30}px)`; 
     topConfigContainer.classList.add('hidden'); 
     topToggleArrow.textContent = '▼';
   }
 });
 
 /* ==========================================================================
- * 日付・カスタム文字の生成
+ * 日付・カスタム文字の生成＆HTMLパーツ化（ひとかたまり化対応）
  * ========================================================================== */
-function generateFullText() {
+function getDateString() {
   const now = new Date();
   const year = now.getFullYear();
   const month2Digit = String(now.getMonth() + 1).padStart(2, '0');
@@ -589,49 +704,43 @@ function generateFullText() {
   const month1Digit = String(now.getMonth() + 1);
   const date1Digit = String(now.getDate());
 
-  // 💡 数字を漢数字に変換するヘルパー
   const toKanjiNum = (numStr) => {
     const kanjiDigits = ['〇', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
     return numStr.split('').map(d => kanjiDigits[parseInt(d)] || d).join('');
   };
 
-  let dateStr = "";
   const format = configFormat.value;
-
   if (format === 'kanji-vertical') {
-    // 💡 和暦（令和）の計算をして漢数字に変換
     const reiwaYear = year - 2018;
     const kYear = toKanjiNum(String(reiwaYear));
     const kMonth = toKanjiNum(month1Digit);
     const kDate = toKanjiNum(date1Digit);
-    dateStr = `令和${kYear}年${kMonth}月${kDate}日`;
+    return `令和${kYear}年${kMonth}月${kDate}日`;
   } else if (format === 'wareki') {
     const reiwaYear = year - 2018;
-    dateStr = `令和${reiwaYear}年${month1Digit}月${date1Digit}日`;
+    return `令和${reiwaYear}年${month1Digit}月${date1Digit}日`;
   } else if (format === 'seireki') {
-    dateStr = `${year}年${month1Digit}月${date1Digit}日`;
+    return `${year}年${month1Digit}月${date1Digit}日`;
   } else if (format === 'hyphen') {
-    dateStr = `${year}-${month2Digit}-${date2Digit}`;
+    return `${year}-${month2Digit}-${date2Digit}`;
   } else if (format === 'dot') {
-    dateStr = `${year}.${month2Digit}.${date2Digit}`;
+    return `${year}.${month2Digit}.${date2Digit}`;
   } else if (format === 'slash') {
-    dateStr = `${year}/${month2Digit}/${date2Digit}`;
+    return `${year}/${month2Digit}/${date2Digit}`;
   }
+  return "";
+}
 
+function generateFullText() {
+  const dateStr = getDateString();
   const customText = configCustomText.value;
   const order = configTextOrder.value;
 
-  if (order === 'none') {
-    return customText;
-  } else if (order === 'before' && customText) {
-    return `${customText} ${dateStr}`;
-  } else if (customText) {
-    return `${dateStr} ${customText}`;
-  } else {
-    return dateStr;
-  }
+  if (order === 'none') return customText;
+  if (order === 'before' && customText) return `${customText} ${dateStr}`;
+  if (customText) return `${dateStr} ${customText}`;
+  return dateStr;
 }
-
 
 function updateDatePreviewStyle() {
   if (!configVisibility.checked) {
@@ -640,18 +749,30 @@ function updateDatePreviewStyle() {
   }
   dateWrapper.style.display = 'inline-block';
 
-  const rawText = generateFullText();
-  dragDatePreview.innerHTML = rawText.replace(/\n/g, '<br>');
+  const dateStr = getDateString();
+  const customText = configCustomText.value;
+  const order = configTextOrder.value;
 
-  // 💡 縦書き用のCSS切り替え
-  if (configFormat.value === 'kanji-vertical') {
-    dragDatePreview.style.writingMode = 'vertical-rl'; // 縦書き（右から左へ）
-    dragDatePreview.style.textOrientation = 'upright'; // 漢字・数字を真っ直ぐ立たせる
-    dragDatePreview.style.padding = '14px 14px';       // パディングを縦長用に反転
+  const dateHtml = `<span class="date-chunk" style="user-select:none;-webkit-user-select:none;pointer-events:none;opacity:0.95;" contenteditable="false">${dateStr}</span>`;
+  const formattedCustom = customText.replace(/\n/g, '<br>');
+  const textHtml = `<span class="text-chunk">${formattedCustom}</span>`;
+
+  if (order === 'none') {
+    dragDatePreview.innerHTML = textHtml;
+  } else if (order === 'before') {
+    dragDatePreview.innerHTML = customText ? `${textHtml} ${dateHtml}` : dateHtml;
   } else {
-    dragDatePreview.style.writingMode = 'horizontal-tb'; // 通常の横書き
+    dragDatePreview.innerHTML = customText ? `${dateHtml} ${textHtml}` : dateHtml;
+  }
+
+  if (configFormat.value === 'kanji-vertical') {
+    dragDatePreview.style.writingMode = 'vertical-rl';
+    dragDatePreview.style.textOrientation = 'upright';
+    dragDatePreview.style.padding = '14px 14px';
+  } else {
+    dragDatePreview.style.writingMode = 'horizontal-tb';
     dragDatePreview.style.textOrientation = 'mixed';
-    dragDatePreview.style.padding = '14px 14px';       // 通常のパディング
+    dragDatePreview.style.padding = '14px 14px';
   }
 
   const currentSize = configFontSize.value || "16";
@@ -682,6 +803,10 @@ function updateDatePreviewStyle() {
   }
 }
 
+configCustomText.addEventListener('input', () => {
+  updateDatePreviewStyle();
+});
+
 prevArrow.addEventListener('click', () => slideTo('prev'));
 nextArrow.addEventListener('click', () => slideTo('next'));
 
@@ -692,7 +817,7 @@ frameDots.forEach(dot => {
   });
 });
 
-[configVisibility, configCustomText, configTextOrder, configFormat, configFont, 
+[configVisibility, configTextOrder, configFormat, configFont, 
  configTextColor, configHasBorder, configBorderColor, configBgColor, configBgAlpha, configFontSize].forEach(el => {
   if (el) {
     el.addEventListener('input', updateDatePreviewStyle);
@@ -789,4 +914,134 @@ if (menuToggleBtn) {
     const isHidden = document.body.classList.toggle('hide-ui-mode');
     menuToggleBtn.textContent = isHidden ? 'メニュー表示' : 'メニュー非表示';
   });
+}
+
+/* ==========================================
+ * 💡 スタンプの配置＆ドラッグ制御
+ * ========================================== */
+document.querySelectorAll('.stamp-thumb').forEach(thumb => {
+  thumb.addEventListener('click', (e) => {
+    const target = e.target.closest('.stamp-thumb');
+    const imgSrc = target.getAttribute('data-src');
+    createStamp(imgSrc);
+  });
+});
+
+function createStamp(src) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'placed-stamp-wrapper';
+  
+  // 初期位置を画面中央にセット
+  wrapper.style.left = '50%';
+  wrapper.style.top = '50%';
+  wrapper.style.transform = 'translate(-50%, -50%) scale(1)';
+  
+  const img = document.createElement('img');
+  img.src = src;
+  img.className = 'placed-stamp-img';
+  
+  // 移動ハンドル（左上）
+  const handleBtn = document.createElement('div');
+  handleBtn.className = 'drag-handle-btn';
+  handleBtn.innerHTML = '<img src="img/ico_move.png" alt="移動">';
+  
+  // 閉じるボタン（右上）
+  const closeBtn = document.createElement('div');
+  closeBtn.className = 'close-box-btn';
+  closeBtn.innerHTML = '<img src="img/ico_close.png" alt="閉じる">';
+  closeBtn.addEventListener('click', (e) => {
+    e.stopPropagation(); 
+    wrapper.remove(); 
+  });
+  
+  // 💡 拡大縮小ハンドル（右下）
+  const resizeBtn = document.createElement('div');
+  resizeBtn.className = 'resize-handle-btn';
+  resizeBtn.innerHTML = '<img src="img/ico_size.png" alt="拡大縮小">'; 
+  
+
+  wrapper.appendChild(img);
+  wrapper.appendChild(handleBtn);
+  wrapper.appendChild(closeBtn);
+  wrapper.appendChild(resizeBtn);
+  document.body.appendChild(wrapper);
+  
+  // ドラッグ移動と拡大縮小の機能を紐付け
+  makeStampInteractive(wrapper, resizeBtn);
+}
+
+function makeStampInteractive(el, resizeBtn) {
+  let startX = 0, startY = 0;
+  let currentX = 0, currentY = 0;
+  let currentScale = 1;
+
+  // 1. ドラッグ移動の処理（スタンプ本体または左上ハンドルを掴んだとき）
+  el.addEventListener('touchstart', (e) => {
+    if (document.body.classList.contains('hide-ui-mode')) return;
+    // 右下ハンドルを触っているときは移動処理を走らせない
+    if (e.target.closest('.resize-handle-btn')) return;
+
+    const touch = e.touches[0];
+    const transform = window.getComputedStyle(el).transform;
+    
+    if (transform !== 'none') {
+      const matrix = new WebKitCSSMatrix(transform);
+      currentX = matrix.m41;
+      currentY = matrix.m42;
+    }
+    startX = touch.clientX - currentX;
+    startY = touch.clientY - currentY;
+  }, { passive: true });
+
+  el.addEventListener('touchmove', (e) => {
+    if (document.body.classList.contains('hide-ui-mode')) return;
+    if (e.target.closest('.resize-handle-btn')) return;
+
+    const touch = e.touches[0];
+    currentX = touch.clientX - startX;
+    currentY = touch.clientY - startY;
+    
+    // 現在の拡大率（currentScale）を維持したまま移動させる
+    el.style.transform = `translate(calc(-50% + ${currentX}px), calc(-50% + ${currentY}px)) scale(${currentScale})`;
+  }, { passive: true });
+
+
+  // 2. 💡 右下ハンドルによる拡大縮小処理
+  let startDist = 0;
+  let startScale = 1;
+
+  resizeBtn.addEventListener('touchstart', (e) => {
+    e.stopPropagation(); // 移動イベントと混ざるのを防ぐ
+    if (document.body.classList.contains('hide-ui-mode')) return;
+
+    const touch = e.touches[0];
+    const rect = el.getBoundingClientRect();
+    
+    // スタンプの中心座標を計算
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    
+    // タップした位置から中心までの初期距離を計算
+    startDist = Math.sqrt(Math.pow(touch.clientX - centerX, 2) + Math.pow(touch.clientY - centerY, 2));
+    startScale = currentScale;
+  }, { passive: true });
+
+  resizeBtn.addEventListener('touchmove', (e) => {
+    e.stopPropagation();
+    if (document.body.classList.contains('hide-ui-mode')) return;
+
+    const touch = e.touches[0];
+    const rect = el.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    
+    // 動かした位置から中心までの現在の距離を計算
+    const currentDist = Math.sqrt(Math.pow(touch.clientX - centerX, 2) + Math.pow(touch.clientY - centerY, 2));
+    
+    // 縮小されすぎ・拡大されすぎを防ぐ制限（0.4倍〜3倍まで）
+    currentScale = Math.max(0.4, Math.min(startScale * (currentDist / startDist), 3));
+    
+    // 位置（currentX, currentY）をキープしたまま、大きさだけをリアルタイム変形
+    el.style.transform = `translate(calc(-50% + ${currentX}px), calc(-50% + ${currentY}px)) scale(${currentScale})`;
+  }, { passive: true });
 }
