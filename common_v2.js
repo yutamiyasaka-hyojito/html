@@ -64,6 +64,47 @@ const configBgAlpha = document.getElementById('configBgAlpha');
 const configFontSize = document.getElementById('configFontSize');
 const fontSizeVal = document.getElementById('fontSizeVal');
 
+// 💡 ホワイトノイズとフィルターを用いてリアルな「カシャッ」音を生成する関数
+function playShutterSound() {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    const audioCtx = new AudioContext();
+
+    // 1. ホワイトノイズ（「さー」という音）を生成
+    const bufferSize = audioCtx.sampleRate * 0.15; // 0.15秒の短い音
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+
+    const noiseNode = audioCtx.createBufferSource();
+    noiseNode.buffer = buffer;
+
+    // 2. フィルターで音質を「カシャッ」という高音に寄せる
+    const filterNode = audioCtx.createBiquadFilter();
+    filterNode.type = 'bandpass';
+    filterNode.frequency.value = 1000; // 音の高さの芯
+    filterNode.Q.value = 2;
+
+    // 3. 音量を一瞬で減衰させる
+    const gainNode = audioCtx.createGain();
+    gainNode.gain.setValueAtTime(0.6, audioCtx.currentTime); // 初期音量
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12); // 0.12秒で消音
+
+    // 接続して再生
+    noiseNode.connect(filterNode);
+    filterNode.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+
+    noiseNode.start();
+  } catch (e) {
+    console.log("シャッター音の生成に失敗しました:", e);
+  }
+}
+
+
 let stream = null;
 let facingMode = 'environment';
 let frameScale = 1;
@@ -169,7 +210,7 @@ filterTriggerBtn.addEventListener('click', (e) => {
   
   if (isShow) {
     const contentHeight = topConfigContent.offsetHeight;
-    topConfigContainer.style.transform = `translateX(-50%) translateY(-${contentHeight + 30}px)`;
+    topConfigContainer.style.transform = `translateY(-${contentHeight + 30}px)`;
     topConfigContainer.classList.add('hidden');
     topToggleArrow.textContent = '▼';
     
@@ -444,6 +485,8 @@ captureBtn.addEventListener('click', () => {
 
   playShotEffect();
 
+playShutterSound();
+
   const canvas = document.createElement('canvas');
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
@@ -621,10 +664,19 @@ captureBtn.addEventListener('click', () => {
   setTimeout(() => preview.classList.add('show'), 30);
 });
 
-retakeBtn.addEventListener('click', () => {
+function closePreview() {
   preview.classList.remove('show');
   setTimeout(() => { preview.style.display = 'none'; }, 300);
-});
+}
+
+retakeBtn.addEventListener('click', closePreview);
+
+previewImg.addEventListener('click', closePreview);
+
+const previewCloseBtn = document.getElementById('previewCloseBtn');
+if (previewCloseBtn) {
+  previewCloseBtn.addEventListener('click', closePreview);
+}
 
 shareBtn.addEventListener('click', async () => {
   if (!currentDataUrl) return;
@@ -839,47 +891,81 @@ function playIntroCarousel() {
   if (isAnimating) return;
   isAnimating = true;
 
+  // 💡 【新設】スライド開始と同時に、独自の案内枠を中央にふわっと表示
+  const initialGuideBox = document.getElementById('initialGuideBox');
+  if (initialGuideBox) {
+    initialGuideBox.style.opacity = '1';
+    initialGuideBox.style.transform = 'translate(-50%, -50%) scale(1)';
+  }
+
+  // 4つのフレーム要素をすべて順番に配置
   const item0 = document.getElementById('item0');
   const item1 = document.getElementById('item1');
   const item2 = document.getElementById('item2');
+  const item3 = document.getElementById('item3');
   
-  if (!item0 || !item1 || !item2) {
+  if (!item0 || !item1 || !item2 || !item3) {
     isAnimating = false;
     return;
   }
 
+  // 初期順序を並列化（1, 2, 3, 4）
   item0.style.order = '1';
   item1.style.order = '2';
   item2.style.order = '3';
+  item3.style.order = '4';
 
+  // ループの繋ぎとして最初のアイテムのコピーを末尾（5番目）に配置
   const cloneItem0 = item0.cloneNode(true);
   cloneItem0.id = 'intro-clone-item0';
-  cloneItem0.style.order = '4';
+  cloneItem0.style.order = '5';
   frameSlider.appendChild(cloneItem0);
 
+  // なめらかに流れるようにCSSのイージングを動的に追加
   const customFlowStyle = document.createElement('style');
   customFlowStyle.innerHTML = `
     .frame-slider.intro-flow {
-      transition: transform 1.5s cubic-bezier(0.25, 1, 0.3, 1) !important;
+      transition: transform 3.5s cubic-bezier(0.45, 0, 0.15, 1) !important;
     }
   `;
   document.head.appendChild(customFlowStyle);
+  
+  // 開始位置を最初のフレームの表示位置にセット
   frameSlider.style.transform = 'translateX(0vw)';
 
+  // 全フレーム（コピーを含めて最後まで）を一気にスライド移動させる
   setTimeout(() => {
     frameSlider.classList.add('intro-flow');
-    frameSlider.style.transform = 'translateX(-300vw)';
-  }, 300);
+    frameSlider.style.transform = 'translateX(-400vw)';
+  }, 100);
 
+  // スライドがすべて回りきった後の帳尻合わせ処理
   setTimeout(() => {
     frameSlider.classList.remove('intro-flow');
     currentFrameIndex = 0;
+    
+    // 通常の無限無限カルーセル制御用（-100vw基準）の順序に戻す
     setupOrder();
+    
+    // コピーと一時的なスタイルの破棄
     cloneItem0.remove();
     customFlowStyle.remove();
     isAnimating = false;
-  }, 1900);
+
+    // 💡 スライド着地から1.5秒の余韻を持たせてから、独自の案内枠をフェードアウト消去
+    setTimeout(() => {
+      if (initialGuideBox) {
+        initialGuideBox.style.opacity = '0';
+        initialGuideBox.style.transform = 'translate(-50%, -50%) scale(0.9)';
+        // アニメーション完了後に完全に消去
+        setTimeout(() => initialGuideBox.remove(), 400);
+      }
+    }, 1500);
+
+  }, 3600); // 3.5秒のアニメーション＋バッファ
 }
+
+// アプリ起動時にイントロを再生
 setTimeout(playIntroCarousel, 400);
 
 /* ==========================================
@@ -928,17 +1014,22 @@ document.querySelectorAll('.stamp-thumb').forEach(thumb => {
 });
 
 function createStamp(src) {
+  // 1. 外枠（fixed用）を作成
   const wrapper = document.createElement('div');
   wrapper.className = 'placed-stamp-wrapper';
-  
-  // 初期位置を画面中央にセット
   wrapper.style.left = '50%';
   wrapper.style.top = '50%';
-  wrapper.style.transform = 'translate(-50%, -50%) scale(1)';
+  wrapper.style.transform = 'translate(-50%, -50%)';
   
+  // 2. 内枠（relative用）を作成
+  const inner = document.createElement('div');
+  inner.className = 'placed-stamp-inner';
+  
+  // 3. スタンプ画像を作成
   const img = document.createElement('img');
   img.src = src;
   img.className = 'placed-stamp-img';
+  img.style.transform = 'scale(1)';
   
   // 移動ハンドル（左上）
   const handleBtn = document.createElement('div');
@@ -950,98 +1041,65 @@ function createStamp(src) {
   closeBtn.className = 'close-box-btn';
   closeBtn.innerHTML = '<img src="img/ico_close.png" alt="閉じる">';
   closeBtn.addEventListener('click', (e) => {
-    e.stopPropagation(); 
-    wrapper.remove(); 
+    e.stopPropagation();
+    wrapper.remove();
   });
   
-  // 💡 拡大縮小ハンドル（右下）
-  const resizeBtn = document.createElement('div');
-  resizeBtn.className = 'resize-handle-btn';
-  resizeBtn.innerHTML = '<img src="img/ico_size.png" alt="拡大縮小">'; 
-  
+  // サイズ調整ボタン（左下：マイナス、右下：プラス）
+  const minusBtn = document.createElement('div');
+  minusBtn.className = 'btn-minus';
+  minusBtn.textContent = '－';
 
-  wrapper.appendChild(img);
-  wrapper.appendChild(handleBtn);
-  wrapper.appendChild(closeBtn);
-  wrapper.appendChild(resizeBtn);
+  const plusBtn = document.createElement('div');
+  plusBtn.className = 'btn-plus';
+  plusBtn.textContent = '＋';
+
+  // 💡 【重要】画像、移動、削除、サイズ調整のすべてのパーツを「内枠（inner）」に集約
+  inner.appendChild(img);
+  inner.appendChild(handleBtn);
+  inner.appendChild(closeBtn);
+  inner.appendChild(minusBtn);
+  inner.appendChild(plusBtn);
+  
+  // 💡 内枠を丸ごと外枠（wrapper）に格納して画面に反映
+  wrapper.appendChild(inner);
   document.body.appendChild(wrapper);
   
-  // ドラッグ移動と拡大縮小の機能を紐付け
-  makeStampInteractive(wrapper, resizeBtn);
+  // 移動とボタン連動の機能を紐付け
+  makeStampInteractive(wrapper, minusBtn, plusBtn);
 }
 
-function makeStampInteractive(el, resizeBtn) {
+function makeStampInteractive(el, minusBtn, plusBtn) {
   let startX = 0, startY = 0;
   let currentX = 0, currentY = 0;
-  let currentScale = 1;
+  let currentScale = 1; // 倍率の管理はそのまま
 
-  // 1. ドラッグ移動の処理（スタンプ本体または左上ハンドルを掴んだとき）
-  el.addEventListener('touchstart', (e) => {
-    if (document.body.classList.contains('hide-ui-mode')) return;
-    // 右下ハンドルを触っているときは移動処理を走らせない
-    if (e.target.closest('.resize-handle-btn')) return;
+  const stampImg = el.querySelector('.placed-stamp-img'); // 画像要素を取得[cite: 1]
+  const BASE_SIZE = 120; // 💡CSSで設定した初期の横幅 (px)
 
-    const touch = e.touches[0];
-    const transform = window.getComputedStyle(el).transform;
-    
-    if (transform !== 'none') {
-      const matrix = new WebKitCSSMatrix(transform);
-      currentX = matrix.m41;
-      currentY = matrix.m42;
-    }
-    startX = touch.clientX - currentX;
-    startY = touch.clientY - currentY;
-  }, { passive: true });
+  // --- 中略 (ドラッグ移動処理) ---
 
-  el.addEventListener('touchmove', (e) => {
-    if (document.body.classList.contains('hide-ui-mode')) return;
-    if (e.target.closest('.resize-handle-btn')) return;
-
-    const touch = e.touches[0];
-    currentX = touch.clientX - startX;
-    currentY = touch.clientY - startY;
-    
-    // 現在の拡大率（currentScale）を維持したまま移動させる
-    el.style.transform = `translate(calc(-50% + ${currentX}px), calc(-50% + ${currentY}px)) scale(${currentScale})`;
-  }, { passive: true });
-
-
-  // 2. 💡 右下ハンドルによる拡大縮小処理
-  let startDist = 0;
-  let startScale = 1;
-
-  resizeBtn.addEventListener('touchstart', (e) => {
-    e.stopPropagation(); // 移動イベントと混ざるのを防ぐ
-    if (document.body.classList.contains('hide-ui-mode')) return;
-
-    const touch = e.touches[0];
-    const rect = el.getBoundingClientRect();
-    
-    // スタンプの中心座標を計算
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
-    
-    // タップした位置から中心までの初期距離を計算
-    startDist = Math.sqrt(Math.pow(touch.clientX - centerX, 2) + Math.pow(touch.clientY - centerY, 2));
-    startScale = currentScale;
-  }, { passive: true });
-
-  resizeBtn.addEventListener('touchmove', (e) => {
+  // 2. 「－」ボタンをタップした時の縮小処理
+  minusBtn.addEventListener('touchstart', (e) => {
     e.stopPropagation();
     if (document.body.classList.contains('hide-ui-mode')) return;
+    
+    currentScale = Math.max(0.4, currentScale - 0.1); //[cite: 1]
+    // 💡 画像の横幅（width）を直接変更する
+    if (stampImg) {
+      stampImg.style.width = `${BASE_SIZE * currentScale}px`;
+    }
+  }, { passive: true });
 
-    const touch = e.touches[0];
-    const rect = el.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
+  // 3. 「＋」ボタンをタップした時の拡大処理
+  plusBtn.addEventListener('touchstart', (e) => {
+    e.stopPropagation();
+    if (document.body.classList.contains('hide-ui-mode')) return;
     
-    // 動かした位置から中心までの現在の距離を計算
-    const currentDist = Math.sqrt(Math.pow(touch.clientX - centerX, 2) + Math.pow(touch.clientY - centerY, 2));
-    
-    // 縮小されすぎ・拡大されすぎを防ぐ制限（0.4倍〜3倍まで）
-    currentScale = Math.max(0.4, Math.min(startScale * (currentDist / startDist), 3));
-    
-    // 位置（currentX, currentY）をキープしたまま、大きさだけをリアルタイム変形
-    el.style.transform = `translate(calc(-50% + ${currentX}px), calc(-50% + ${currentY}px)) scale(${currentScale})`;
+    currentScale = Math.min(3.0, currentScale + 0.1); //[cite: 1]
+    // 💡 画像の横幅（width）を直接変更する
+    if (stampImg) {
+      stampImg.style.width = `${BASE_SIZE * currentScale}px`;
+    }
   }, { passive: true });
 }

@@ -357,8 +357,30 @@ body {
   width: 85vw; max-width: 400px; box-sizing: border-box;
 }
 
-.frame-selector { display: flex; gap: 12px; width: 100%; overflow-x: auto; padding: 4px 0; justify-content: center; }
-.frame-selector::-webkit-scrollbar { display: none; }
+.frame-selector {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  overflow-x: auto;
+  padding: 4px 16px 12px 16px; /* 💡 左右に16pxの余白を作り、下にスクロールバー用のスペースを確保 */
+  justify-content: flex-start;  /* 💡 アイテムが多くなっても左端が絶対に途切れないように変更 */
+  box-sizing: border-box;
+  -webkit-overflow-scrolling: touch; /* スマホでのスクロールをなめらかに */
+}
+
+/* 💡 スクロールバーを常時表示するカスタムスタイル（黒背景に白ツマミで見やすくします） */
+.frame-selector::-webkit-scrollbar {
+  display: block !important;
+  height: 6px !important;
+}
+.frame-selector::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 3px;
+}
+.frame-selector::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 3px;
+}
 
 .frame-dot {
   width: 46px; height: 82px; border-radius: 4px; border: 1px solid rgba(255, 255, 255, 0.8);
@@ -480,8 +502,23 @@ body.hide-ui-mode #dragDatePreview:active {
 }
 .help-modal.show { opacity: 1; pointer-events: auto; }
 .help-modal-content {
-  background: #fff; color: #333; width: 85vw; max-width: 340px; padding: 24px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); text-align: center; transform: scale(0.85); transition: transform 0.3s ease;
+ background: #fff; color: #333; width: 85vw; max-width: 340px; max-height: 90vh; overflow-y: auto; padding: 15px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); text-align: left; transform: scale(0.85); transition: transform 0.3s ease; font-family: sans-serif; box-sizing: border-box;position: relative;
 }
+
+.help-modal-content h4 {
+  margin:0 0 5px;
+  border-bottom:1px solid #ccc ;
+  padding: 0 0 5px;
+  font-size: 14px;
+}
+
+.help-modal-content p {
+  font-size: 13px;
+  text-align: left;
+  margin:0 0 15px;
+}
+
+
 .help-modal.show .help-modal-content { transform: scale(1); }
 .help-modal-close { border: none; background: #333; color: #fff; padding: 10px 24px; border-radius: 999px; font-size: 14px; font-weight: bold; cursor: pointer; width: 100%; }
 
@@ -499,13 +536,18 @@ body.hide-ui-mode #dragDatePreview:active {
   pointer-events: auto;
   display: inline-block;
   cursor: move;
-  padding: 8px;
+  padding: 0px;
 }
 
-.placed-stamp-wrapper .drag-handle-btn {
+.placed-stamp-inner {
+  position: relative;
+  display: inline-block;
+}
+
+.placed-stamp-inner .drag-handle-btn {
   position: absolute;
-  top: -14px;
-  left: -14px;
+  top: -16px;
+  left: -16px;
   width: 32px;
   height: 32px;
   background: none;
@@ -522,16 +564,26 @@ body.hide-ui-mode #dragDatePreview:active {
   height: 32px;
 }
 
+.placed-stamp-inner {
+  position: relative;
+  display: inline-block;
+}
+
 .placed-stamp-img {
-  max-width: 120px;
+  width: 120px;
   height: auto;
   display: block;
   user-select: none;
   pointer-events: none;
+  transition: transform 0.1s ease;
 }
 
-body.hide-ui-mode .placed-stamp-wrapper .close-box-btn,
-body.hide-ui-mode .placed-stamp-wrapper .drag-handle-btn {
+
+
+body.hide-ui-mode .placed-stamp-inner .drag-handle-btn,
+body.hide-ui-mode .placed-stamp-inner .close-box-btn,
+body.hide-ui-mode .placed-stamp-inner .btn-minus,
+body.hide-ui-mode .placed-stamp-inner .btn-plus{
   display: none !important;
 }
 body.hide-ui-mode .placed-stamp-wrapper {
@@ -553,6 +605,8 @@ body.hide-ui-mode .placed-stamp-wrapper {
   max-width: 320px;
   line-height: 1.4;
 }
+#previewCloseBtn{
+position: fixed; top: 16px; left: 16px; width: 40px; height: 40px; background: rgba(0,0,0,0.6); color: #fff; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-size: 20px; font-weight: bold; cursor: pointer; z-index: 100001; border: 1px solid rgba(255,255,255,0.3);}
 
 /* 中の黒いパネルだけがゴールドに一瞬フラッシュするアニメーション */
 @keyframes panel-flash {
@@ -574,28 +628,46 @@ body.hide-ui-mode .placed-stamp-wrapper {
   animation: panel-flash 0.5s ease-out;
 }
 
-.placed-stamp-wrapper .resize-handle-btn {
+.placed-stamp-inner .btn-minus,
+.placed-stamp-inner .btn-plus {
   position: absolute;
-  bottom: -14px;
-  right: -14px;
+  bottom: -16px;
   width: 32px;
   height: 32px;
-  background: none;
+  background: rgba(0, 0, 0, 0.85);
+  color: #fff;
+  border-radius: 50%;
+  font-weight: bold;
   display: flex;
   justify-content: center;
   align-items: center;
-  cursor: se-resize;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.3);
   z-index: 60;
   user-select: none;
+  font-size: 16px;
+  border: 1px solid rgba(255,255,255,0.2);
 }
-.placed-stamp-wrapper .resize-handle-btn img {
-  width: 32px;
-  height: 32px;
+.placed-stamp-inner .btn-minus { left: -16px; }
+.placed-stamp-inner .btn-plus { right: -16px; }
+
+/* 💡 メニュー非表示モードの時はサイズ調整ボタンも一緒に消す */
+body.hide-ui-mode .placed-stamp-inner .btn-minus,
+body.hide-ui-mode .placed-stamp-inner .btn-plus {
+  display: none !important;
 }
 
-/* メニュー非表示モードの時は拡大縮小ハンドルも消す */
-body.hide-ui-mode .placed-stamp-wrapper .resize-handle-btn {
-  display: none !important;
+#initialGuideBox {position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.9); background: rgba(255, 255, 255, 0.85); color: #333; padding: 20px 28px; border-radius: 16px; border: 1px solid rgba(255, 204, 0, 0.4); text-align: center; font-size: 14px; line-height: 1.6; font-weight: bold; z-index: 60000; pointer-events: none; opacity: 0; transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.16, 1, 0.3, 1); box-shadow: 0 10px 30px rgba(0,0,0,0.6); white-space: nowrap;}
+
+.help-modal-content h3 {
+  margin: 0 0 15px;
+  text-align: center;
+}
+
+#helpModalCloseBtn {position: absolute; top: 10px; right: 10px; width: 32px; height: 32px; background: rgba(0, 0, 0, 0.85); color: #fff; border-radius: 50%; font-size: 20px; font-weight: bold; display: flex; justify-content: center; align-items: center; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.3); z-index: 60; user-select: none;}
+
+.modal-detail {
+  overflow-y: auto; flex: 1; min-height: 0; padding-right: 4px;
 }
 
 </style>
@@ -641,11 +713,11 @@ body.hide-ui-mode .placed-stamp-wrapper .resize-handle-btn {
           <span class="toggle-switch-slider"></span>
         </label>
       </div>
-      <div class="config-row" style="align-items: flex-start;">
+      <div class="config-row" style="align-items: flex-start;display: none;">
         <label style="margin-top: 6px;">カスタム文字:</label>
-        <textarea id="configCustomText" rows="2" style="flex: 1; resize: none; background: #222; color: #fff; border: 1px solid #555; border-radius: 4px; padding: 4px 6px; font-size: 12px; font-family: inherit;" placeholder="改行ボタンで複数行入力できます">文字を入力できます</textarea>
+        <textarea id="configCustomText" rows="2" style="flex: 1; resize: none; background: #222; color: #fff; border: 1px solid #555; border-radius: 4px; padding: 4px 6px; font-size: 12px; font-family: inherit;" placeholder="改行ボタンで複数行入力できます"></textarea>
       </div>
-      <div class="config-row">
+      <div class="config-row" style="display: none;">
         <label>文字の位置:</label>
         <select id="configTextOrder">
           <option value="after">日付 の 後ろ (日付 ＋ 文字)</option>
@@ -705,7 +777,7 @@ body.hide-ui-mode .placed-stamp-wrapper .resize-handle-btn {
       </div>
     </div>
     <button class="toggle-top-btn" id="toggleTopBtn">
-      <span>日付・文字の作成コーナー</span><span id="topToggleArrow">▼</span>
+      <span>日付枠の編集パネル</span><span id="topToggleArrow">▼</span>
     </button>
   </div>
 
@@ -729,9 +801,13 @@ body.hide-ui-mode .placed-stamp-wrapper .resize-handle-btn {
 
   <div class="frame-selector-container" id="stampSelectorContainer">
     <div class="frame-selector">
-      <button class="frame-dot stamp-thumb" data-src="img/stamp/oiwai.png"><img src="img/stamp/oiwai.png" alt="スタンプ1"></button>
-      <button class="frame-dot stamp-thumb" data-src="img/stamp/shuku.png"><img src="img/stamp/shuku.png" alt="スタンプ2"></button>
-      <button class="frame-dot stamp-thumb" data-src="img/stamp/sotugyou.png"><img src="img/stamp/sotugyou.png" alt="スタンプ3"></button>
+      <button class="frame-dot stamp-thumb" data-src="img/stamp/oiwai.png"><img src="img/stamp/oiwai.png" alt=""></button>
+      <button class="frame-dot stamp-thumb" data-src="img/stamp/shuku.png"><img src="img/stamp/shuku.png" alt=""></button>
+      <button class="frame-dot stamp-thumb" data-src="img/stamp/sotugyou.png"><img src="img/stamp/sotugyou.png" alt=""></button>
+      <button class="frame-dot stamp-thumb" data-src="img/stamp/1staniv.png"><img src="img/stamp/1staniv.png" alt=""></button>
+      <button class="frame-dot stamp-thumb" data-src="img/stamp/aniv.png"><img src="img/stamp/aniv.png" alt=""></button>
+      <button class="frame-dot stamp-thumb" data-src="img/stamp/newyear.png"><img src="img/stamp/newyear.png" alt=""></button>
+      <button class="frame-dot stamp-thumb" data-src="img/stamp/wedding.png"><img src="img/stamp/wedding.png" alt=""></button>
      
     </div>
   </div>
@@ -754,6 +830,7 @@ body.hide-ui-mode .placed-stamp-wrapper .resize-handle-btn {
 </div>
 
 <div class="preview" id="preview">
+  <div id="previewCloseBtn">&times;</div>
   <img id="previewImg" alt="">
   <div class="preview-ui">
     <button id="retakeBtn">撮り直し</button>
@@ -764,15 +841,42 @@ body.hide-ui-mode .placed-stamp-wrapper .resize-handle-btn {
 
 <div class="help-modal" id="helpModal">
   <div class="help-modal-content">
+    <div id="helpModalCloseBtn">&times;</div>
     <h3>使い方</h3>
-    <button class="help-modal-close" id="helpModalCloseBtn">閉じる</button>
+    <div class="modal-detai">
+    <h4>フレーム</h4>
+    <p><b>左右の矢印ボタン・左右スワイプ・フレーム選択</b>：フレームを選択<br><b>2本の指で広げる/つまむ</b>：フレームの拡大・縮小</p>
+    <h4>日付枠</h4>
+    <p><b>日付枠・日付枠の編集パネル</b>：日付枠の色、サイズ、形式などを編集<br><b>ドラッグ</b>：配置位置移動　<b>✕ボタン</b>：枠を非表示</p>
+    <h4>スタンプ</h4>
+    <p><b>スタンプ選択</b>：好きなスタンプを選択<br><b>ドラッグ</b>：配置位置移動　<b>✕ボタン</b>：スタンプを削除<b><br>＋-ボタン</b>：大きさ調整</p>
+    <h4>ボタンが邪魔だと思ったら</h4>
+    <p><b>メニューの非表示</b>：シャッターと「メニューの非表示」以外、写真に写らないものは非表示</p>
+    <h4>写真の質感</h4>
+    <p><b>写真の質感</b>：モノクロ、古写真など写真の質感を選択</p>
+    <h4>自撮りモード</h4>
+    <p><b>右下のボタン</b>：自撮りモードに変更</p>
+    <h4>撮影後</h4>
+    <p><b>保存する</b>：スマホに保存<br><b>シェア</b>：LINEやSNSで友達に送る<br><b>取り直し・✕ボタン</b>：撮影画面に戻る</p>
+    </div></div>
   </div>
-</div>
 
+
+
+
+
+
+
+
+<div id="initialGuideBox" >
+  フレーム、スタンプ、日付枠、写真の質感を選んで、<br>
+  オリジナルの写真を撮影しましょう！<br>
+  <br>右下の「i」ボタンを押すと、<br>詳しい使い方を確認できます。
+</div>
 <div id="saveToast">📸 写真を保存しました</div>
 <div id="msgToast"></div>
 <div id="shot-effect"></div>
 
-<script src="common.js"></script>
+<script src="common_v2.js"></script>
 </body>
 </html>
