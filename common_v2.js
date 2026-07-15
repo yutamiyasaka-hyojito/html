@@ -1,3 +1,53 @@
+const frameSliderEl = document.getElementById('frameSlider');
+FRAME_MASTER_DATA.forEach(frame => {
+  const itemDiv = document.createElement('div');
+  itemDiv.className = 'frame-item';
+  itemDiv.id = `item${frame.id}`;
+  
+  const img = document.createElement('img');
+  img.src = frame.src;
+  // 💡 設定ファイルで指定したfitType (fit-contain または fit-cover) を付与
+  img.className = `frame-overlay ${frame.fitType}`;
+  img.id = `frameImg${frame.id}`;
+  img.alt = '';
+  
+  itemDiv.appendChild(img);
+  frameSliderEl.appendChild(itemDiv);
+});
+
+// 💡 2. 下部のフレーム選択サムネイルを生成
+const frameSelectorInnerEl = document.getElementById('frameSelectorInner');
+FRAME_MASTER_DATA.forEach((frame, idx) => {
+  const btn = document.createElement('button');
+  btn.className = `frame-dot${idx === 0 ? ' active' : ''}`;
+  btn.setAttribute('data-index', frame.id);
+  
+  const img = document.createElement('img');
+  img.src = frame.src;
+  img.alt = `フレーム${frame.id + 1}`;
+  
+  btn.appendChild(img);
+  frameSelectorInnerEl.appendChild(btn);
+});
+
+// 💡 3. 下部のスタンプ選択サムネイルを生成
+const stampSelectorInnerEl = document.getElementById('stampSelectorInner');
+STAMP_MASTER_DATA.forEach(stamp => {
+  const btn = document.createElement('button');
+  btn.className = 'frame-dot stamp-thumb';
+  btn.setAttribute('data-src', stamp.src);
+  
+  const img = document.createElement('img');
+  img.src = stamp.src;
+  img.alt = stamp.alt;
+  
+  btn.appendChild(img);
+  stampSelectorInnerEl.appendChild(btn);
+});
+
+// 💡 4. 設定データの件数に合わせて件数管理用の変数を自動同期
+const totalFrames = FRAME_MASTER_DATA.length;
+
 function setAppHeight() {
   document.documentElement.style.setProperty(
     '--app-height',
@@ -11,6 +61,7 @@ window.addEventListener('orientationchange', () => {
   setTimeout(setAppHeight, 300);
 });
 
+const frameDots = document.querySelectorAll('#frameSelectorInner .frame-dot');
 const video = document.getElementById('cameraVideo');
 const frameSlider = document.getElementById('frameSlider');
 
@@ -33,7 +84,6 @@ const frameBtn = document.getElementById('toggleSelectorBtn');
 const stampBtn = document.getElementById('toggleStampBtn');
 const frameArrow = document.getElementById('toggleArrow');
 const stampArrow = document.getElementById('stampToggleArrow');
-const frameDots = document.querySelectorAll('.frame-dot:not(.stamp-thumb)');
 const prevArrow = document.getElementById('prevArrow');
 const nextArrow = document.getElementById('nextArrow');
 
@@ -113,11 +163,10 @@ let startDistance = 0;
 let currentDataUrl = null;
 
 let currentFrameIndex = 0;
-const totalFrames = 4; 
 let isAnimating = false;
 
 let datePercentX = 0.5; 
-let datePercentY = 0.70; 
+let datePercentY = 0.65; 
 let activeFilter = 'none';
 
 // デフォルトでフレームもスタンプも閉じた状態に設定
@@ -324,7 +373,7 @@ closeBoxBtn.addEventListener('click', (e) => {
     topToggleArrow.textContent = '▼';
   }
 
-  msgToast.textContent = "画面上部の作成コーナーで再度表示できます";
+  msgToast.textContent = "画面上部の編集パネルで再度表示できます";
   msgToast.classList.add('show');
   setTimeout(() => { msgToast.classList.remove('show'); }, 3000);
 });
@@ -506,7 +555,15 @@ playShutterSound();
   }
 
   drawCoverVideo(ctx, video, canvas.width, canvas.height);
+const currentConfig = FRAME_MASTER_DATA[currentFrameIndex];
+
+if (currentConfig.fitType === FRAME_FIT_TYPES.COVER) {
+  // 縦幅いっぱいに描画する関数（新規追加）を呼ぶ
+  drawScaledCoverImage(ctx, currentFrameImg, canvas.width, canvas.height, frameScale);
+} else {
+  // 既存の全体を収める関数を呼ぶ
   drawScaledContainImage(ctx, currentFrameImg, canvas.width, canvas.height, frameScale);
+}
 
   if (activeFilter === 'old-photo') {
     ctx.save();
@@ -656,9 +713,17 @@ playShutterSound();
 
   currentDataUrl = canvas.toDataURL('image/png');
   previewImg.src = currentDataUrl; saveBtn.href = currentDataUrl;
-  const now = new Date();
-  const timeStr = now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0') + "_" + String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0') + String(now.getSeconds()).padStart(2, '0');
-  saveBtn.download = `photo-frame_${timeStr}.png`;
+const now = new Date();
+
+const timeStr = now.getFullYear() + 
+                String(now.getMonth() + 1).padStart(2, '0') + 
+                String(now.getDate()).padStart(2, '0') + "_" + 
+                String(now.getHours()).padStart(2, '0') + 
+                String(now.getMinutes()).padStart(2, '0') + 
+                String(now.getSeconds()).padStart(2, '0');
+
+const baseName = (typeof SAVE_FILE_NAME_PREFIX !== 'undefined') ? SAVE_FILE_NAME_PREFIX : 'photo-frame';
+saveBtn.download = `${baseName}_${timeStr}.png`;
 
   preview.style.display = 'block';
   setTimeout(() => preview.classList.add('show'), 30);
@@ -1002,6 +1067,26 @@ if (menuToggleBtn) {
   });
 }
 
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    // 💡 タブが非表示になったらカメラを停止してバッテリーを節約
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      video.srcObject = null;
+      stream = null;
+      console.log("🔋 バックグラウンド移行のため、カメラを一時停止しました");
+    }
+  } else {
+    // 💡 ユーザーが戻ってきたら自動でカメラを再起動
+    if (!stream && !preview.classList.contains('show')) { 
+      // プレビュー表示中（撮影完了画面）でなければカメラを再起動
+      startCamera();
+      console.log("🔋 フォアグラウンド復帰のため、カメラを再開しました");
+    }
+  }
+});
+
+
 /* ==========================================
  * 💡 スタンプの配置＆ドラッグ制御
  * ========================================== */
@@ -1072,34 +1157,211 @@ function createStamp(src) {
 function makeStampInteractive(el, minusBtn, plusBtn) {
   let startX = 0, startY = 0;
   let currentX = 0, currentY = 0;
-  let currentScale = 1; // 倍率の管理はそのまま
+  let currentScale = 1;
 
-  const stampImg = el.querySelector('.placed-stamp-img'); // 画像要素を取得[cite: 1]
-  const BASE_SIZE = 120; // 💡CSSで設定した初期の横幅 (px)
+  const stampImg = el.querySelector('.placed-stamp-img');
+  const BASE_SIZE = 120; // config_1.js側と合わせた初期サイズ
 
-  // --- 中略 (ドラッグ移動処理) ---
+  // 💡 1. ドラッグ開始：タッチされた瞬間のスタンプの位置(座標)をカチッと記憶
+  el.addEventListener('touchstart', (e) => {
+    if (document.body.classList.contains('hide-ui-mode')) return;
+    if (e.target.closest('.btn-minus') || e.target.closest('.btn-plus')) return;
 
-  // 2. 「－」ボタンをタップした時の縮小処理
+    const touch = e.touches[0];
+    const transform = window.getComputedStyle(el).transform;
+    
+    if (transform !== 'none') {
+      const matrix = new WebKitCSSMatrix(transform);
+      currentX = matrix.m41;
+      currentY = matrix.m42;
+    }
+    startX = touch.clientX - currentX;
+    startY = touch.clientY - currentY;
+  }, { passive: true });
+
+  // 💡 2. ドラッグ中：指の動きに合わせてスタンプの座標をリアルタイム更新
+  el.addEventListener('touchmove', (e) => {
+    if (document.body.classList.contains('hide-ui-mode')) return;
+    if (e.target.closest('.btn-minus') || e.target.closest('.btn-plus')) return;
+
+    const touch = e.touches[0];
+    currentX = touch.clientX - startX;
+    currentY = touch.clientY - startY;
+    
+    // 計算した座標を外枠の transform に代入して動かす
+    el.style.transform = `translate(calc(-50% + ${currentX}px), calc(-50% + ${currentY}px))`;
+  }, { passive: true });
+
+  // 💡 3. 「－」ボタン：タップで縮小（ボタンの大きさ・位置関係はキープ）
   minusBtn.addEventListener('touchstart', (e) => {
     e.stopPropagation();
     if (document.body.classList.contains('hide-ui-mode')) return;
     
-    currentScale = Math.max(0.4, currentScale - 0.1); //[cite: 1]
-    // 💡 画像の横幅（width）を直接変更する
+    currentScale = Math.max(0.4, currentScale - 0.1);
     if (stampImg) {
       stampImg.style.width = `${BASE_SIZE * currentScale}px`;
     }
   }, { passive: true });
 
-  // 3. 「＋」ボタンをタップした時の拡大処理
+  // 💡 4. 「＋」ボタン：タップで拡大（ボタンの大きさ・位置関係はキープ）
   plusBtn.addEventListener('touchstart', (e) => {
     e.stopPropagation();
     if (document.body.classList.contains('hide-ui-mode')) return;
     
-    currentScale = Math.min(3.0, currentScale + 0.1); //[cite: 1]
-    // 💡 画像の横幅（width）を直接変更する
+    currentScale = Math.min(3.0, currentScale + 0.1);
     if (stampImg) {
       stampImg.style.width = `${BASE_SIZE * currentScale}px`;
     }
   }, { passive: true });
 }
+
+function drawScaledCoverImage(ctx, img, canvasW, canvasH, scale) {
+  const imgRatio = img.naturalWidth / img.naturalHeight;
+  const canvasRatio = canvasW / canvasH;
+  let drawW, drawH;
+
+  // 縦幅を基準にして、はみ出すサイズを計算
+  if (imgRatio > canvasRatio) {
+    drawH = canvasH;
+    drawW = canvasH * imgRatio;
+  } else {
+    drawW = canvasW;
+    drawH = canvasW / imgRatio;
+  }
+
+  // ピンチイン・ピンチアウトの拡大率を適用
+  drawW *= scale;
+  drawH *= scale;
+
+  ctx.drawImage(
+    img, 
+    (canvasW - drawW) / 2, 
+    (canvasH - drawH) / 2, 
+    drawW, 
+    drawH
+  );
+}
+
+
+let sleepTimeout = null;
+const SLEEP_DELAY = 5 * 60 * 1000; // 💡 5分間放置でスリープ (ミリ秒指定)
+
+// スリープ用表示カバーの作成
+const sleepOverlay = document.createElement('div');
+sleepOverlay.id = 'sleepOverlay';
+sleepOverlay.style.cssText = `
+  position: fixed; inset: 0; z-index: 999999;
+  background: rgba(0, 0, 0, 0.9); color: #fff;
+  display: flex; flex-direction: column; justify-content: center; align-items: center;
+  opacity: 0; pointer-events: none; transition: opacity 0.4s ease;
+  font-family: sans-serif; text-align: center;
+`;
+sleepOverlay.innerHTML = `
+  <p style="font-size: 16px; font-weight: bold; margin-bottom: 12px; letter-spacing: 0.05em;">
+    バッテリー節約のため一時停止しています
+  </p>
+  <button style="
+    border: 2px solid #ffcc00; background: transparent; color: #ffcc00;
+    padding: 10px 24px; border-radius: 999px; font-size: 14px; font-weight: bold; cursor: pointer;
+  ">タップして再開</button>
+`;
+document.body.appendChild(sleepOverlay);
+
+// スリープ状態に入る
+function enterSleep() {
+  if (stream) {
+    stream.getTracks().forEach(track => track.stop());
+    video.srcObject = null;
+    stream = null;
+    console.log("💤 放置を検知したため、カメラをスリープしました");
+  }
+  sleepOverlay.style.opacity = '1';
+  sleepOverlay.style.pointerEvents = 'auto';
+}
+
+// スリープから復帰する
+function wakeup() {
+  resetSleepTimer();
+  if (sleepOverlay.style.opacity === '1') {
+    sleepOverlay.style.opacity = '0';
+    sleepOverlay.style.pointerEvents = 'none';
+    if (!stream && !preview.classList.contains('show')) {
+      startCamera();
+      console.log("💤 スリープから復帰し、カメラを再起動しました");
+    }
+  }
+}
+
+// タイマーのリセット
+function resetSleepTimer() {
+  clearTimeout(sleepTimeout);
+  // プレビュー表示中や、すでにスリープ中の時はタイマーを作動させない
+  if (preview && preview.classList.contains('show')) return;
+  if (sleepOverlay.style.opacity === '1') return;
+  
+  sleepTimeout = setTimeout(enterSleep, SLEEP_DELAY);
+}
+
+// 操作を検知するイベント群
+['touchstart', 'mousedown', 'mousemove', 'keydown'].forEach(evt => {
+  window.addEventListener(evt, resetSleepTimer, { passive: true });
+});
+
+// スリープ画面タップで復帰
+sleepOverlay.addEventListener('touchstart', (e) => { e.stopPropagation(); wakeup(); }, { passive: true });
+sleepOverlay.addEventListener('mousedown', (e) => { e.stopPropagation(); wakeup(); });
+
+// 初回タイマー起動
+resetSleepTimer();
+
+function forceExternalBrowserForWorks() {
+  const ua = navigator.userAgent.toLowerCase();
+  
+  // 💡 修正：通常のLINE判定（isLine）をきれいに削除し、LINE WORKSだけをチェック
+  const isLineWorks = ua.indexOf('worksmobile') > -1;
+
+  if (isLineWorks) {
+    // 画面全体を覆う脱出用の案内レイヤー（HTML）を動的に作成
+    const overlay = document.createElement('div');
+    overlay.style.position = 'fixed';
+    overlay.style.inset = '0';
+    overlay.style.backgroundColor = 'rgba(0,0,0,0.95)';
+    overlay.style.zIndex = '999999';
+    overlay.style.display = 'flex';
+    overlay.style.flexDirection = 'column';
+    overlay.style.justifyContent = 'center';
+    overlay.style.alignItems = 'center';
+    overlay.style.padding = '30px';
+    overlay.style.boxSizing = 'border-box';
+    overlay.style.color = '#fff';
+    overlay.style.fontFamily = 'sans-serif';
+    overlay.style.textAlign = 'center';
+
+    // 現在のサイトのURLを取得（http or https を落とした純粋なアドレス）
+    const currentUrl = window.location.href.replace(/^https?:\/\//, '');
+
+    // iOS(Safari) と Android(Chrome) を確実に強制起動するURLの書き分け
+    let intentUrl = '';
+    if (ua.indexOf('iphone') > -1 || ua.indexOf('ipad') > -1) {
+      intentUrl = `x-web-search://?${window.location.href}`;
+    } else {
+      intentUrl = `intent://${currentUrl}#Intent;scheme=https;package=com.android.chrome;end`;
+    }
+
+    overlay.innerHTML = `
+      <h2 class="line-works-h2">LINE WORKSをご利用の方へ</h2>
+      <p>
+        LINE WORKS内では、スマホの制限により<br>
+        <b>カメラの機能が正常に動作しません。</b><br>
+        <br>
+        お手数ですが、下のボタンをタップして<br>
+        通常のブラウザ（Safari / Chrome）で開き直してください。
+      </p>
+      <a href="${intentUrl}" class="line-works-btn">標準ブラウザで開き直す</a>`;
+
+    document.body.appendChild(overlay);
+  }
+}
+
+// アプリ起動時にチェックを実行
+forceExternalBrowserForWorks();

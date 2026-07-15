@@ -93,7 +93,7 @@ body {
 #dateWrapper {
   position: fixed;
   left: 50%;
-  top: 70%;
+  top: 60%;
   transform: translate(-50%, -50%);
   z-index: 50;
   pointer-events: auto;
@@ -137,8 +137,8 @@ body {
 
 .close-box-btn {
   position: absolute;
-  top: -16px;
-  right: -16px;
+  top: -18px;
+  right: -18px;
   width: 32px;
   height: 32px;
   background: rgba(0, 0, 0, 0.85);
@@ -241,9 +241,9 @@ body {
   left: 16px;
   height: 32px;
   width: 120px;
-  border: none;
+  border:  rgba(0,0,0,0.6);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 204, 0, 0.85);
   box-shadow: 0 4px 10px rgba(0,0,0,0.3);
   font-size: 12px;
   font-weight: bold;
@@ -358,14 +358,24 @@ body {
 }
 
 .frame-selector {
-  display: flex;
+  display: grid;
+  grid-auto-flow: column;
   gap: 12px;
   width: 100%;
   overflow-x: auto;
   padding: 4px 16px 12px 16px; /* 💡 左右に16pxの余白を作り、下にスクロールバー用のスペースを確保 */
-  justify-content: flex-start;  /* 💡 アイテムが多くなっても左端が絶対に途切れないように変更 */
+  justify-content:safe center;  /* 💡 アイテムが多くなっても左端が絶対に途切れないように変更 */
   box-sizing: border-box;
   -webkit-overflow-scrolling: touch; /* スマホでのスクロールをなめらかに */
+}
+.frame-selector::before,
+.frame-selector::after {
+  content: '';
+  margin: auto;
+}
+
+.frame-selector .frame-dot {
+  flex-shrink: 0;
 }
 
 /* 💡 スクロールバーを常時表示するカスタムスタイル（黒背景に白ツマミで見やすくします） */
@@ -384,7 +394,7 @@ body {
 
 .frame-dot {
   width: 46px; height: 82px; border-radius: 4px; border: 1px solid rgba(255, 255, 255, 0.8);
-  background: #333; padding: 0; overflow: hidden; cursor: pointer; transition: all 0.2s ease;
+  background: rgba(0, 0, 0, 0.4); padding: 0; overflow: hidden; cursor: pointer; transition: all 0.2s ease;
   flex-shrink: 0; display: flex; justify-content: center; align-items: center;
 }
 .frame-dot img { width: 100%; height: 100%; object-fit: cover; }
@@ -546,8 +556,8 @@ body.hide-ui-mode #dragDatePreview:active {
 
 .placed-stamp-inner .drag-handle-btn {
   position: absolute;
-  top: -16px;
-  left: -16px;
+  top: -18px;
+  left: -18px;
   width: 32px;
   height: 32px;
   background: none;
@@ -631,7 +641,7 @@ position: fixed; top: 16px; left: 16px; width: 40px; height: 40px; background: r
 .placed-stamp-inner .btn-minus,
 .placed-stamp-inner .btn-plus {
   position: absolute;
-  bottom: -16px;
+  bottom: -18px;
   width: 32px;
   height: 32px;
   background: rgba(0, 0, 0, 0.85);
@@ -648,8 +658,8 @@ position: fixed; top: 16px; left: 16px; width: 40px; height: 40px; background: r
   font-size: 16px;
   border: 1px solid rgba(255,255,255,0.2);
 }
-.placed-stamp-inner .btn-minus { left: -16px; }
-.placed-stamp-inner .btn-plus { right: -16px; }
+.placed-stamp-inner .btn-minus { left: -18px; }
+.placed-stamp-inner .btn-plus { right: -18px; }
 
 /* 💡 メニュー非表示モードの時はサイズ調整ボタンも一緒に消す */
 body.hide-ui-mode .placed-stamp-inner .btn-minus,
@@ -657,7 +667,7 @@ body.hide-ui-mode .placed-stamp-inner .btn-plus {
   display: none !important;
 }
 
-#initialGuideBox {position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0.9); background: rgba(255, 255, 255, 0.85); color: #333; padding: 20px 28px; border-radius: 16px; border: 1px solid rgba(255, 204, 0, 0.4); text-align: center; font-size: 14px; line-height: 1.6; font-weight: bold; z-index: 60000; pointer-events: none; opacity: 0; transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.16, 1, 0.3, 1); box-shadow: 0 10px 30px rgba(0,0,0,0.6); white-space: nowrap;}
+#initialGuideBox {position: fixed; top: 40%; left: 50%; transform: translate(-50%, -50%) scale(0.9); background: rgba(255, 255, 255, 0.85); color: #333; padding: 20px 28px; border-radius: 16px; border: 1px solid rgba(255, 204, 0, 0.4); text-align: center; font-size: 14px; line-height: 1.6; font-weight: bold; z-index: 60000; pointer-events: none; opacity: 0; transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.16, 1, 0.3, 1); box-shadow: 0 10px 30px rgba(0,0,0,0.6); white-space: nowrap;}
 
 .help-modal-content h3 {
   margin: 0 0 15px;
@@ -670,6 +680,30 @@ body.hide-ui-mode .placed-stamp-inner .btn-plus {
   overflow-y: auto; flex: 1; min-height: 0; padding-right: 4px;
 }
 
+.frame-overlay {
+    width: 100%;
+    height: 100%;
+    object-position: center center;
+  }
+
+  /* 全体を表示する通常タイプ */
+  .frame-overlay.fit-contain {
+    object-fit: contain;
+  }
+
+  /* 縦幅いっぱいに引き伸ばす顔はめタイプ */
+  .frame-overlay.fit-cover {
+    object-fit: cover;
+  }
+.line-works-h2 {
+  color: #ffcc00; font-size: 18px; margin-bottom: 15px;
+} 
+
+.line-works-btn{
+  display: block; width: 100%; max-width: 280px; background: #00c300; 
+        color: #fff; text-decoration: none; font-weight: bold; padding: 16px 0; 
+        border-radius: 999px; box-shadow: 0 4px 15px rgba(0,195,0,0.4); font-size: 15px;
+}
 </style>
 <link href="https://fonts.googleapis.com/css2?family=Alex+Brush&family=Noto+Sans+JP:wght@700&family=Noto+Serif+JP:wght@700&family=Share+Tech+Mono&family=Yuji+Syuku&family=Yomogi&display=swap" rel="stylesheet">
 </head>
@@ -683,10 +717,6 @@ body.hide-ui-mode .placed-stamp-inner .btn-plus {
 <div class="frame-stage">
   <div class="frame-slider-wrap">
     <div class="frame-slider" id="frameSlider">
-      <div class="frame-item" id="item0"><img src="img/waku.png" class="frame-overlay" id="frameImg0" alt=""></div>
-      <div class="frame-item" id="item1"><img src="img/frame1.png" class="frame-overlay" id="frameImg1" alt=""></div>
-      <div class="frame-item" id="item2"><img src="img/frame2.png" class="frame-overlay" id="frameImg2" alt=""></div>
-      <div class="frame-item" id="item3"><img src="img/frame3.png" class="frame-overlay" id="frameImg3" alt=""></div>
       
     </div>
   </div>
@@ -791,24 +821,14 @@ body.hide-ui-mode .placed-stamp-inner .btn-plus {
   </div>
 
   <div class="frame-selector-container" id="frameSelectorContainer">
-    <div class="frame-selector">
-      <button class="frame-dot active" data-index="0"><img src="img/waku.png" alt="フレーム1"></button>
-      <button class="frame-dot" data-index="1"><img src="img/frame1.png" alt="フレーム2"></button>
-      <button class="frame-dot" data-index="2"><img src="img/frame2.png" alt="フレーム3"></button>
-      <button class="frame-dot" data-index="3"><img src="img/frame3.png" alt="フレーム3"></button>
+    <div class="frame-selector" id="frameSelectorInner">
+    
     </div>
   </div>
 
   <div class="frame-selector-container" id="stampSelectorContainer">
-    <div class="frame-selector">
-      <button class="frame-dot stamp-thumb" data-src="img/stamp/oiwai.png"><img src="img/stamp/oiwai.png" alt=""></button>
-      <button class="frame-dot stamp-thumb" data-src="img/stamp/shuku.png"><img src="img/stamp/shuku.png" alt=""></button>
-      <button class="frame-dot stamp-thumb" data-src="img/stamp/sotugyou.png"><img src="img/stamp/sotugyou.png" alt=""></button>
-      <button class="frame-dot stamp-thumb" data-src="img/stamp/1staniv.png"><img src="img/stamp/1staniv.png" alt=""></button>
-      <button class="frame-dot stamp-thumb" data-src="img/stamp/aniv.png"><img src="img/stamp/aniv.png" alt=""></button>
-      <button class="frame-dot stamp-thumb" data-src="img/stamp/newyear.png"><img src="img/stamp/newyear.png" alt=""></button>
-      <button class="frame-dot stamp-thumb" data-src="img/stamp/wedding.png"><img src="img/stamp/wedding.png" alt=""></button>
-     
+    <div class="frame-selector" id="stampSelectorInner">
+           
     </div>
   </div>
 
@@ -862,12 +882,6 @@ body.hide-ui-mode .placed-stamp-inner .btn-plus {
   </div>
 
 
-
-
-
-
-
-
 <div id="initialGuideBox" >
   フレーム、スタンプ、日付枠、写真の質感を選んで、<br>
   オリジナルの写真を撮影しましょう！<br>
@@ -877,6 +891,7 @@ body.hide-ui-mode .placed-stamp-inner .btn-plus {
 <div id="msgToast"></div>
 <div id="shot-effect"></div>
 
+<script src="config_1.js"></script>
 <script src="common_v2.js"></script>
 </body>
 </html>
