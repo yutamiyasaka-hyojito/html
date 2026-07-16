@@ -1,3 +1,13 @@
+function cleanUrlParameters() {
+  const url = new URL(window.location.href);
+  if (url.searchParams.has('openExternalBrowser') || url.searchParams.has('openInExternalBrowser')) {
+    url.searchParams.delete('openExternalBrowser');
+    url.searchParams.delete('openInExternalBrowser');
+    window.history.replaceState({}, document.title, url.pathname);
+  }
+}
+cleanUrlParameters();
+
 const frameSliderEl = document.getElementById('frameSlider');
 FRAME_MASTER_DATA.forEach(frame => {
   const itemDiv = document.createElement('div');
@@ -6,7 +16,6 @@ FRAME_MASTER_DATA.forEach(frame => {
   
   const img = document.createElement('img');
   img.src = frame.src;
-  // 💡 設定ファイルで指定したfitType (fit-contain または fit-cover) を付与
   img.className = `frame-overlay ${frame.fitType}`;
   img.id = `frameImg${frame.id}`;
   img.alt = '';
@@ -121,8 +130,7 @@ function playShutterSound() {
     if (!AudioContext) return;
     const audioCtx = new AudioContext();
 
-    // 1. ホワイトノイズ（「さー」という音）を生成
-    const bufferSize = audioCtx.sampleRate * 0.15; // 0.15秒の短い音
+    const bufferSize = audioCtx.sampleRate * 0.15;
     const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
     const data = buffer.getChannelData(0);
     for (let i = 0; i < bufferSize; i++) {
@@ -132,18 +140,15 @@ function playShutterSound() {
     const noiseNode = audioCtx.createBufferSource();
     noiseNode.buffer = buffer;
 
-    // 2. フィルターで音質を「カシャッ」という高音に寄せる
     const filterNode = audioCtx.createBiquadFilter();
     filterNode.type = 'bandpass';
-    filterNode.frequency.value = 1000; // 音の高さの芯
+    filterNode.frequency.value = 1000;
     filterNode.Q.value = 2;
 
-    // 3. 音量を一瞬で減衰させる
     const gainNode = audioCtx.createGain();
-    gainNode.gain.setValueAtTime(0.6, audioCtx.currentTime); // 初期音量
-    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12); // 0.12秒で消音
+    gainNode.gain.setValueAtTime(0.6, audioCtx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
 
-    // 接続して再生
     noiseNode.connect(filterNode);
     filterNode.connect(gainNode);
     gainNode.connect(audioCtx.destination);
@@ -153,7 +158,6 @@ function playShutterSound() {
     console.log("シャッター音の生成に失敗しました:", e);
   }
 }
-
 
 let stream = null;
 let facingMode = 'environment';
@@ -169,14 +173,10 @@ let datePercentX = 0.5;
 let datePercentY = 0.65; 
 let activeFilter = 'none';
 
-// デフォルトでフレームもスタンプも閉じた状態に設定
 let isFrameOpen = false;
 let isStampOpen = false;
 
-// 💡 拡大縮小（ピンチ）判定用の管理フラグ
 let isPinching = false;
-
-// 💡 案内メッセージ用の初回タップ判定フラグ
 let hasShownFirstTapMessage = false;
 
 /* ==========================================
@@ -184,7 +184,6 @@ let hasShownFirstTapMessage = false;
  * ========================================== */
 function initPanelPositions() {
   const contentHeight = topConfigContent.offsetHeight;
-  // 💡 不要な translateX(-50%) を完全に削除し、純粋に上に隠すアニメーションにします
   topConfigContainer.style.transform = `translateY(-${contentHeight + 30}px)`;
   topConfigContainer.classList.add('hidden');
   topToggleArrow.textContent = '▼';
@@ -325,13 +324,12 @@ dateWrapper.addEventListener('touchmove', (e) => {
 dateWrapper.addEventListener('touchend', (e) => {
   e.stopPropagation();
   if (document.body.classList.contains('hide-ui-mode')) return; 
-  if (isPinching) return; // 拡大縮小中は作成コーナーの動作を完全ブロック
+  if (isPinching) return;
 
   if (!hasMoved) {
     const isHidden = topConfigContainer.classList.contains('hidden');
     
     if (isHidden) {
-      // 【閉じていた場合】作成コーナーを開く
       topConfigContainer.classList.remove('hidden');
       topConfigContainer.style.transform = 'translateY(0)';
       topToggleArrow.textContent = '▲';
@@ -340,15 +338,13 @@ dateWrapper.addEventListener('touchend', (e) => {
       isStampOpen = false;
       updateSelectorVisibility();
     } else {
-      // 【すでに開いていた場合】中の黒いパネル（topConfigContent）だけを一瞬ピカッと光らせる
       topConfigContent.classList.remove('panel-highlight-effect');
-      void topConfigContent.offsetWidth; // 再描画を促すおまじない
+      void topConfigContent.offsetWidth;
       topConfigContent.classList.add('panel-highlight-effect');
     }
 
-    // 初回タップ時のみの案内トースト表示（途中で改行を挟みました）
     if (!hasShownFirstTapMessage) {
-      hasShownFirstTapMessage = true; // 次回以降は表示しない
+      hasShownFirstTapMessage = true;
 
       msgToast.innerHTML = '上部の「日付・文字枠作成」コーナーで、<br>テキストや枠、日付の形式などを編集できます。';
       msgToast.classList.add('show');
@@ -516,7 +512,32 @@ function getDistance(touches) {
 }
 function applyFrameZoom() {
   const currentFrameImg = document.getElementById(`frameImg${currentFrameIndex}`);
-  if (currentFrameImg) { currentFrameImg.style.transform = `scale(${frameScale})`; }
+  if (!currentFrameImg) return;
+
+  const currentConfig = FRAME_MASTER_DATA[currentFrameIndex];
+  
+  if (currentConfig.fitType === FRAME_FIT_TYPES.COVER) {
+    // 💡 1. 画像の本来の縦横比を100%正確に取得
+    const imgRatio = currentFrameImg.naturalWidth / currentFrameImg.naturalHeight;
+    
+    // 💡 2. 現在のスマホ画面の高さに、ピンチの縮小率（frameScale）を掛け算して「今の高さ」を計算
+    const dynamicHeight = window.innerHeight * frameScale;
+    
+    // 💡 3. 比率を維持したまま、はみ出し部分も一緒に縮む「今の横幅」を計算
+    const dynamicWidth = dynamicHeight * imgRatio;
+    
+    // 💡 4. 計算した正確なピクセルサイズを画像にリアルタイムで直接流し込む！
+    currentFrameImg.style.height = `${dynamicHeight}px`;
+    currentFrameImg.style.width = `${dynamicWidth}px`;
+    
+    // スケールによる歪みを防ぐため transform は初期化
+    currentFrameImg.style.transform = 'none';
+  } else {
+    // 通常の額縁タイプ（contain）は今まで通りの挙動
+    currentFrameImg.style.height = '100%';
+    currentFrameImg.style.width = '100%';
+    currentFrameImg.style.transform = `scale(${frameScale})`;
+  }
 }
 
 /* ==========================================
@@ -533,8 +554,7 @@ captureBtn.addEventListener('click', () => {
   if (!video.videoWidth || !video.videoHeight || !currentFrameImg.complete) return;
 
   playShotEffect();
-
-playShutterSound();
+  playShutterSound();
 
   const canvas = document.createElement('canvas');
   canvas.width = window.innerWidth;
@@ -555,15 +575,13 @@ playShutterSound();
   }
 
   drawCoverVideo(ctx, video, canvas.width, canvas.height);
-const currentConfig = FRAME_MASTER_DATA[currentFrameIndex];
+  const currentConfig = FRAME_MASTER_DATA[currentFrameIndex];
 
-if (currentConfig.fitType === FRAME_FIT_TYPES.COVER) {
-  // 縦幅いっぱいに描画する関数（新規追加）を呼ぶ
-  drawScaledCoverImage(ctx, currentFrameImg, canvas.width, canvas.height, frameScale);
-} else {
-  // 既存の全体を収める関数を呼ぶ
-  drawScaledContainImage(ctx, currentFrameImg, canvas.width, canvas.height, frameScale);
-}
+  if (currentConfig.fitType === FRAME_FIT_TYPES.COVER) {
+    drawScaledCoverImage(ctx, currentFrameImg, canvas.width, canvas.height, frameScale);
+  } else {
+    drawScaledContainImage(ctx, currentFrameImg, canvas.width, canvas.height, frameScale);
+  }
 
   if (activeFilter === 'old-photo') {
     ctx.save();
@@ -713,17 +731,17 @@ if (currentConfig.fitType === FRAME_FIT_TYPES.COVER) {
 
   currentDataUrl = canvas.toDataURL('image/png');
   previewImg.src = currentDataUrl; saveBtn.href = currentDataUrl;
-const now = new Date();
+  const now = new Date();
 
-const timeStr = now.getFullYear() + 
-                String(now.getMonth() + 1).padStart(2, '0') + 
-                String(now.getDate()).padStart(2, '0') + "_" + 
-                String(now.getHours()).padStart(2, '0') + 
-                String(now.getMinutes()).padStart(2, '0') + 
-                String(now.getSeconds()).padStart(2, '0');
+  const timeStr = now.getFullYear() + 
+                  String(now.getMonth() + 1).padStart(2, '0') + 
+                  String(now.getDate()).padStart(2, '0') + "_" + 
+                  String(now.getHours()).padStart(2, '0') + 
+                  String(now.getMinutes()).padStart(2, '0') + 
+                  String(now.getSeconds()).padStart(2, '0');
 
-const baseName = (typeof SAVE_FILE_NAME_PREFIX !== 'undefined') ? SAVE_FILE_NAME_PREFIX : 'photo-frame';
-saveBtn.download = `${baseName}_${timeStr}.png`;
+  const baseName = (typeof SAVE_FILE_NAME_PREFIX !== 'undefined') ? SAVE_FILE_NAME_PREFIX : 'photo-frame';
+  saveBtn.download = `${baseName}_${timeStr}.png`;
 
   preview.style.display = 'block';
   setTimeout(() => preview.classList.add('show'), 30);
@@ -735,7 +753,6 @@ function closePreview() {
 }
 
 retakeBtn.addEventListener('click', closePreview);
-
 previewImg.addEventListener('click', closePreview);
 
 const previewCloseBtn = document.getElementById('previewCloseBtn');
@@ -743,20 +760,46 @@ if (previewCloseBtn) {
   previewCloseBtn.addEventListener('click', closePreview);
 }
 
+// 💡 【追加】保存ボタンをクリックした際のアナウンス強化＆自動クローズ
+saveBtn.addEventListener('click', () => {
+  // HTML側のsaveToastを削除したため、直接msgToastを最初から表示します
+  if (msgToast) {
+    msgToast.innerHTML = '写真を保存しました！<br><span style="font-size:11px;color:#ffcc00;font-weight:bold;">スマホの「ダウンロード」フォルダをご確認ください。</span>';
+    msgToast.classList.add('show');
+    
+      setTimeout(() => { 
+      msgToast.classList.remove('show'); 
+    }, 3000);
+  }
+
+  // 保存ボタンが押されてから1.2秒後にプレビューを自動で閉じてカメラへ誘導します
+  setTimeout(() => {
+    closePreview();
+  }, 1200);
+});
+
+// 💡 【追加・変更】シェアボタンのクリック：解決策Aの実装
 shareBtn.addEventListener('click', async () => {
   if (!currentDataUrl) return;
+
+ 
+  const baseShareUrl = window.location.href.split('?')[0];
+  const shareUrlWithParams = `${baseShareUrl}?openExternalBrowser=1&openInExternalBrowser=1`;
 
   try {
     const response = await fetch(currentDataUrl);
     const blob = await response.blob();
     const file = new File([blob], "photo-frame.png", { type: "image/png" });
 
+    // テキスト欄に脱出用パラメータ付きURLを埋め込む
+    const shareData = {
+      files: [file],
+      title: '日付付きフォトフレーム',
+      text: `新しく写真を撮影しました！あなたも撮ってみてね！\n👉 ${shareUrlWithParams}`
+    };
+
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({
-        files: [file],
-        title: '日付付きフォトフレーム',
-        text: '新しく写真を撮影しました！'
-      });
+      await navigator.share(shareData);
     } else {
       alert('お使いのブラウザ・端末は、写真の直接シェアに対応していません。画像を保存してからシェアしてください。');
     }
@@ -803,16 +846,15 @@ toggleTopBtn.addEventListener('click', (e) => {
     updateSelectorVisibility();
   } else {
     const contentHeight = topConfigContent.offsetHeight;
-    // 💡 修正：translateX(-50%) を完全に消去し、純粋に translateY だけにします
     topConfigContainer.style.transform = `translateY(-${contentHeight + 30}px)`; 
     topConfigContainer.classList.add('hidden'); 
     topToggleArrow.textContent = '▼';
   }
 });
 
-/* ==========================================================================
+/* ==========================================
  * 日付・カスタム文字の生成＆HTMLパーツ化（ひとかたまり化対応）
- * ========================================================================== */
+ * ========================================== */
 function getDateString() {
   const now = new Date();
   const year = now.getFullYear();
@@ -956,14 +998,12 @@ function playIntroCarousel() {
   if (isAnimating) return;
   isAnimating = true;
 
-  // 💡 【新設】スライド開始と同時に、独自の案内枠を中央にふわっと表示
   const initialGuideBox = document.getElementById('initialGuideBox');
   if (initialGuideBox) {
     initialGuideBox.style.opacity = '1';
     initialGuideBox.style.transform = 'translate(-50%, -50%) scale(1)';
   }
 
-  // 4つのフレーム要素をすべて順番に配置
   const item0 = document.getElementById('item0');
   const item1 = document.getElementById('item1');
   const item2 = document.getElementById('item2');
@@ -974,19 +1014,16 @@ function playIntroCarousel() {
     return;
   }
 
-  // 初期順序を並列化（1, 2, 3, 4）
   item0.style.order = '1';
   item1.style.order = '2';
   item2.style.order = '3';
   item3.style.order = '4';
 
-  // ループの繋ぎとして最初のアイテムのコピーを末尾（5番目）に配置
   const cloneItem0 = item0.cloneNode(true);
   cloneItem0.id = 'intro-clone-item0';
   cloneItem0.style.order = '5';
   frameSlider.appendChild(cloneItem0);
 
-  // なめらかに流れるようにCSSのイージングを動的に追加
   const customFlowStyle = document.createElement('style');
   customFlowStyle.innerHTML = `
     .frame-slider.intro-flow {
@@ -995,42 +1032,34 @@ function playIntroCarousel() {
   `;
   document.head.appendChild(customFlowStyle);
   
-  // 開始位置を最初のフレームの表示位置にセット
   frameSlider.style.transform = 'translateX(0vw)';
 
-  // 全フレーム（コピーを含めて最後まで）を一気にスライド移動させる
   setTimeout(() => {
     frameSlider.classList.add('intro-flow');
     frameSlider.style.transform = 'translateX(-400vw)';
   }, 100);
 
-  // スライドがすべて回りきった後の帳尻合わせ処理
   setTimeout(() => {
     frameSlider.classList.remove('intro-flow');
     currentFrameIndex = 0;
     
-    // 通常の無限無限カルーセル制御用（-100vw基準）の順序に戻す
     setupOrder();
     
-    // コピーと一時的なスタイルの破棄
     cloneItem0.remove();
     customFlowStyle.remove();
     isAnimating = false;
 
-    // 💡 スライド着地から1.5秒の余韻を持たせてから、独自の案内枠をフェードアウト消去
     setTimeout(() => {
       if (initialGuideBox) {
         initialGuideBox.style.opacity = '0';
         initialGuideBox.style.transform = 'translate(-50%, -50%) scale(0.9)';
-        // アニメーション完了後に完全に消去
         setTimeout(() => initialGuideBox.remove(), 400);
       }
     }, 1500);
 
-  }, 3600); // 3.5秒のアニメーション＋バッファ
+  }, 3600);
 }
 
-// アプリ起動時にイントロを再生
 setTimeout(playIntroCarousel, 400);
 
 /* ==========================================
@@ -1039,7 +1068,99 @@ setTimeout(playIntroCarousel, 400);
 const helpBtn = document.getElementById('helpBtn');
 const helpModal = document.getElementById('helpModal');
 const helpModalCloseBtn = document.getElementById('helpModalCloseBtn');
+const helpModalBottomCloseBtn = document.getElementById('helpModalBottomCloseBtn');
 const menuToggleBtn = document.getElementById('menuToggleBtn');
+
+// スライド制御用要素
+const helpSliderStage = document.getElementById('helpSliderStage');
+const helpSlidePrev = document.getElementById('helpSlidePrev');
+const helpSlideNext = document.getElementById('helpSlideNext');
+const helpDotsContainer = document.getElementById('helpDotsContainer');
+
+let helpCurrentPage = 0;
+let helpTotalPages = 0;
+
+// 💡 仕様：config_1.js側に上書き用データ(HELP_SLIDES_DATA)があるか判定して構築
+function initHelpSlides() {
+  if (typeof HELP_SLIDES_DATA !== 'undefined' && Array.isArray(HELP_SLIDES_DATA)) {
+    helpSliderStage.innerHTML = ''; // デフォルトをクリア
+    
+    HELP_SLIDES_DATA.forEach(slide => {
+      const pageDiv = document.createElement('div');
+      pageDiv.className = 'help-slide-page';
+      
+      // 💡 画像(imgSrc)が指定されている場合だけ、imgタグを生成する
+      let imgHtml = '';
+      if (slide.imgSrc) {
+        imgHtml = `<img src="${slide.imgSrc}" style="display:block; max-width:100%; max-height:120px; margin:0 auto 10px auto; object-fit:contain;">`;
+      }
+
+      pageDiv.innerHTML = `
+        <h4>${slide.title}</h4>
+        ${imgHtml}
+        <p>${slide.text}</p>
+      `;
+      helpSliderStage.appendChild(pageDiv);
+    });
+  }
+
+  const pages = helpSliderStage.querySelectorAll('.help-slide-page');
+  helpTotalPages = pages.length;
+
+  helpDotsContainer.innerHTML = '';
+  for (let i = 0; i < helpTotalPages; i++) {
+    const dot = document.createElement('div');
+    dot.className = `help-dot-item${i === 0 ? ' active' : ''}`;
+    dot.setAttribute('data-slide-index', i);
+    helpDotsContainer.appendChild(dot);
+  }
+
+  updateHelpSlidePosition();
+}
+
+// 💡 スライド画面の移動＆アクティブ〇アイコンの更新表示
+function updateHelpSlidePosition() {
+  // ステージを横にシフト移動
+  helpSliderStage.style.transform = `translateX(-${helpCurrentPage * 100}%)`;
+
+  // 〇アイコン（ドット）のactiveクラスを同期
+  const dots = helpDotsContainer.querySelectorAll('.help-dot-item');
+  dots.forEach((dot, idx) => {
+    dot.classList.toggle('active', idx === helpCurrentPage);
+  });
+
+  // 最初のページ、最後のページでの矢印の非表示・表示制御
+  if (helpSlidePrev) helpSlidePrev.style.display = (helpCurrentPage === 0) ? 'none' : 'flex';
+  if (helpSlideNext) helpSlideNext.style.display = (helpCurrentPage === helpTotalPages - 1) ? 'none' : 'flex';
+}
+
+// 矢印ボタンのクリックイベント
+if (helpSlidePrev) {
+  helpSlidePrev.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (helpCurrentPage > 0) { helpCurrentPage--; updateHelpSlidePosition(); }
+  });
+}
+if (helpSlideNext) {
+  helpSlideNext.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (helpCurrentPage < helpTotalPages - 1) { helpCurrentPage++; updateHelpSlidePosition(); }
+  });
+}
+
+// 💡 モーダルを閉じる際の共通ロジック
+function closeHelpModal() {
+  if (helpModal) {
+    helpModal.classList.remove('show');
+    // ページ位置をはじめ（0）に戻しておく親切設計
+    helpCurrentPage = 0;
+    updateHelpSlidePosition();
+    
+    if (!stream && !preview.classList.contains('show')) {
+      startCamera();
+    }
+  }
+}
 
 if (helpBtn && helpModal) {
   helpBtn.addEventListener('click', (e) => {
@@ -1047,14 +1168,15 @@ if (helpBtn && helpModal) {
     helpModal.classList.add('show');
   });
 }
-if (helpModalCloseBtn && helpModal) {
-  helpModalCloseBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    helpModal.classList.remove('show');
-  });
-}
+
+[helpModalCloseBtn, helpModalBottomCloseBtn].forEach(btn => {
+  if (btn) {
+    btn.addEventListener('click', (e) => { e.stopPropagation(); closeHelpModal(); });
+  }
+});
+
 if (helpModal) {
-  helpModal.addEventListener('click', () => helpModal.classList.remove('show'));
+  helpModal.addEventListener('click', closeHelpModal);
   const helpContent = helpModal.querySelector('.help-modal-content');
   if (helpContent) { helpContent.addEventListener('click', (e) => e.stopPropagation()); }
 }
@@ -1067,23 +1189,60 @@ if (menuToggleBtn) {
   });
 }
 
+// 🚀 アプリ起動時に初期化と自動実行
+initHelpSlides();
+
+function autoOpenHelp() {
+  if (helpModal) {
+    setTimeout(() => {
+      helpModal.classList.add('show');
+    }, 600); 
+  }
+}
+autoOpenHelp();
+
+// 💡 共通の安全再起動ロジック
+function resumeCameraSafely() {
+  // 撮影後のプレビュー表示中（撮影完了画面）であれば、再起動せずそのままにします
+  if (preview && preview.classList.contains('show')) return;
+
+  console.log("🔋 復帰イベントを検知: 古いストリームを掃除してカメラの再起動を試みます。");
+  
+  // 💡 ポイント1: シェアシートが完全に閉じきって、OSがカメラを解放するのを300ミリ秒待ちます
+  setTimeout(async () => {
+    // 💡 ポイント2: 古いストリームが「生きた屍」状態で残っているため、一度強制的に全停止して破棄します
+    if (stream) {
+      try {
+        stream.getTracks().forEach(track => track.stop());
+      } catch (e) {
+        console.log("トラック停止中のエラー(無視してOK):", e);
+      }
+      stream = null; // 完全に初期化
+    }
+
+    // 新鮮な状態で新しくカメラを取得し直す
+    await startCamera();
+    console.log("🔋 カメラデバイスの再取得・再起動が完全に完了しました。");
+  }, 300); 
+}
+
+// 1. タブの切り替え時（別タブへの移動など）の制御
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
-    // 💡 タブが非表示になったらカメラを停止してバッテリーを節約
     if (stream) {
       stream.getTracks().forEach(track => track.stop());
       video.srcObject = null;
       stream = null;
-      console.log("🔋 バックグラウンド移行のため、カメラを一時停止しました");
+      console.log("バックグラウンド移行のため、カメラを一時停止しました");
     }
   } else {
-    // 💡 ユーザーが戻ってきたら自動でカメラを再起動
-    if (!stream && !preview.classList.contains('show')) { 
-      // プレビュー表示中（撮影完了画面）でなければカメラを再起動
-      startCamera();
-      console.log("🔋 フォアグラウンド復帰のため、カメラを再開しました");
-    }
+    resumeCameraSafely();
   }
+});
+
+// 2. シェアパネルやOSメニューから画面に戻ってきた瞬間を100%検知してカメラを蘇生
+window.addEventListener('focus', () => {
+  resumeCameraSafely();
 });
 
 
@@ -1099,29 +1258,24 @@ document.querySelectorAll('.stamp-thumb').forEach(thumb => {
 });
 
 function createStamp(src) {
-  // 1. 外枠（fixed用）を作成
   const wrapper = document.createElement('div');
   wrapper.className = 'placed-stamp-wrapper';
   wrapper.style.left = '50%';
   wrapper.style.top = '50%';
   wrapper.style.transform = 'translate(-50%, -50%)';
   
-  // 2. 内枠（relative用）を作成
   const inner = document.createElement('div');
   inner.className = 'placed-stamp-inner';
   
-  // 3. スタンプ画像を作成
   const img = document.createElement('img');
   img.src = src;
   img.className = 'placed-stamp-img';
   img.style.transform = 'scale(1)';
   
-  // 移動ハンドル（左上）
   const handleBtn = document.createElement('div');
   handleBtn.className = 'drag-handle-btn';
   handleBtn.innerHTML = '<img src="img/ico_move.png" alt="移動">';
   
-  // 閉じるボタン（右上）
   const closeBtn = document.createElement('div');
   closeBtn.className = 'close-box-btn';
   closeBtn.innerHTML = '<img src="img/ico_close.png" alt="閉じる">';
@@ -1130,7 +1284,6 @@ function createStamp(src) {
     wrapper.remove();
   });
   
-  // サイズ調整ボタン（左下：マイナス、右下：プラス）
   const minusBtn = document.createElement('div');
   minusBtn.className = 'btn-minus';
   minusBtn.textContent = '－';
@@ -1139,18 +1292,15 @@ function createStamp(src) {
   plusBtn.className = 'btn-plus';
   plusBtn.textContent = '＋';
 
-  // 💡 【重要】画像、移動、削除、サイズ調整のすべてのパーツを「内枠（inner）」に集約
   inner.appendChild(img);
   inner.appendChild(handleBtn);
   inner.appendChild(closeBtn);
   inner.appendChild(minusBtn);
   inner.appendChild(plusBtn);
   
-  // 💡 内枠を丸ごと外枠（wrapper）に格納して画面に反映
   wrapper.appendChild(inner);
   document.body.appendChild(wrapper);
   
-  // 移動とボタン連動の機能を紐付け
   makeStampInteractive(wrapper, minusBtn, plusBtn);
 }
 
@@ -1160,9 +1310,8 @@ function makeStampInteractive(el, minusBtn, plusBtn) {
   let currentScale = 1;
 
   const stampImg = el.querySelector('.placed-stamp-img');
-  const BASE_SIZE = 120; // config_1.js側と合わせた初期サイズ
+  const BASE_SIZE = 120;
 
-  // 💡 1. ドラッグ開始：タッチされた瞬間のスタンプの位置(座標)をカチッと記憶
   el.addEventListener('touchstart', (e) => {
     if (document.body.classList.contains('hide-ui-mode')) return;
     if (e.target.closest('.btn-minus') || e.target.closest('.btn-plus')) return;
@@ -1179,7 +1328,6 @@ function makeStampInteractive(el, minusBtn, plusBtn) {
     startY = touch.clientY - currentY;
   }, { passive: true });
 
-  // 💡 2. ドラッグ中：指の動きに合わせてスタンプの座標をリアルタイム更新
   el.addEventListener('touchmove', (e) => {
     if (document.body.classList.contains('hide-ui-mode')) return;
     if (e.target.closest('.btn-minus') || e.target.closest('.btn-plus')) return;
@@ -1188,11 +1336,9 @@ function makeStampInteractive(el, minusBtn, plusBtn) {
     currentX = touch.clientX - startX;
     currentY = touch.clientY - startY;
     
-    // 計算した座標を外枠の transform に代入して動かす
     el.style.transform = `translate(calc(-50% + ${currentX}px), calc(-50% + ${currentY}px))`;
   }, { passive: true });
 
-  // 💡 3. 「－」ボタン：タップで縮小（ボタンの大きさ・位置関係はキープ）
   minusBtn.addEventListener('touchstart', (e) => {
     e.stopPropagation();
     if (document.body.classList.contains('hide-ui-mode')) return;
@@ -1203,7 +1349,6 @@ function makeStampInteractive(el, minusBtn, plusBtn) {
     }
   }, { passive: true });
 
-  // 💡 4. 「＋」ボタン：タップで拡大（ボタンの大きさ・位置関係はキープ）
   plusBtn.addEventListener('touchstart', (e) => {
     e.stopPropagation();
     if (document.body.classList.contains('hide-ui-mode')) return;
@@ -1220,7 +1365,6 @@ function drawScaledCoverImage(ctx, img, canvasW, canvasH, scale) {
   const canvasRatio = canvasW / canvasH;
   let drawW, drawH;
 
-  // 縦幅を基準にして、はみ出すサイズを計算
   if (imgRatio > canvasRatio) {
     drawH = canvasH;
     drawW = canvasH * imgRatio;
@@ -1229,7 +1373,6 @@ function drawScaledCoverImage(ctx, img, canvasW, canvasH, scale) {
     drawH = canvasW / imgRatio;
   }
 
-  // ピンチイン・ピンチアウトの拡大率を適用
   drawW *= scale;
   drawH *= scale;
 
@@ -1244,9 +1387,8 @@ function drawScaledCoverImage(ctx, img, canvasW, canvasH, scale) {
 
 
 let sleepTimeout = null;
-const SLEEP_DELAY = 5 * 60 * 1000; // 💡 5分間放置でスリープ (ミリ秒指定)
+const SLEEP_DELAY = 5 * 60 * 1000;
 
-// スリープ用表示カバーの作成
 const sleepOverlay = document.createElement('div');
 sleepOverlay.id = 'sleepOverlay';
 sleepOverlay.style.cssText = `
@@ -1267,7 +1409,6 @@ sleepOverlay.innerHTML = `
 `;
 document.body.appendChild(sleepOverlay);
 
-// スリープ状態に入る
 function enterSleep() {
   if (stream) {
     stream.getTracks().forEach(track => track.stop());
@@ -1279,7 +1420,6 @@ function enterSleep() {
   sleepOverlay.style.pointerEvents = 'auto';
 }
 
-// スリープから復帰する
 function wakeup() {
   resetSleepTimer();
   if (sleepOverlay.style.opacity === '1') {
@@ -1292,36 +1432,28 @@ function wakeup() {
   }
 }
 
-// タイマーのリセット
 function resetSleepTimer() {
   clearTimeout(sleepTimeout);
-  // プレビュー表示中や、すでにスリープ中の時はタイマーを作動させない
   if (preview && preview.classList.contains('show')) return;
   if (sleepOverlay.style.opacity === '1') return;
   
   sleepTimeout = setTimeout(enterSleep, SLEEP_DELAY);
 }
 
-// 操作を検知するイベント群
 ['touchstart', 'mousedown', 'mousemove', 'keydown'].forEach(evt => {
   window.addEventListener(evt, resetSleepTimer, { passive: true });
 });
 
-// スリープ画面タップで復帰
 sleepOverlay.addEventListener('touchstart', (e) => { e.stopPropagation(); wakeup(); }, { passive: true });
 sleepOverlay.addEventListener('mousedown', (e) => { e.stopPropagation(); wakeup(); });
 
-// 初回タイマー起動
 resetSleepTimer();
 
 function forceExternalBrowserForWorks() {
   const ua = navigator.userAgent.toLowerCase();
-  
-  // 💡 修正：通常のLINE判定（isLine）をきれいに削除し、LINE WORKSだけをチェック
   const isLineWorks = ua.indexOf('worksmobile') > -1;
 
   if (isLineWorks) {
-    // 画面全体を覆う脱出用の案内レイヤー（HTML）を動的に作成
     const overlay = document.createElement('div');
     overlay.style.position = 'fixed';
     overlay.style.inset = '0';
@@ -1337,10 +1469,8 @@ function forceExternalBrowserForWorks() {
     overlay.style.fontFamily = 'sans-serif';
     overlay.style.textAlign = 'center';
 
-    // 現在のサイトのURLを取得（http or https を落とした純粋なアドレス）
     const currentUrl = window.location.href.replace(/^https?:\/\//, '');
 
-    // iOS(Safari) と Android(Chrome) を確実に強制起動するURLの書き分け
     let intentUrl = '';
     if (ua.indexOf('iphone') > -1 || ua.indexOf('ipad') > -1) {
       intentUrl = `x-web-search://?${window.location.href}`;
@@ -1362,6 +1492,27 @@ function forceExternalBrowserForWorks() {
     document.body.appendChild(overlay);
   }
 }
-
-// アプリ起動時にチェックを実行
 forceExternalBrowserForWorks();
+
+// ==========================================
+// ブラウザの直接ファイルシェア判定セーフティネット
+// ==========================================
+function checkShareSupport() {
+  const shareBtn = document.getElementById('shareBtn');
+  if (!shareBtn) return;
+
+  try {
+    const dummyBlob = new Blob([''], { type: 'image/png' });
+    const dummyFile = new File([dummyBlob], 'test.png', { type: 'image/png' });
+
+    if (navigator.canShare && navigator.canShare({ files: [dummyFile] })) {
+      shareBtn.style.display = 'inline-block'; 
+    } else {
+      // 💡 LINE WORKSやその他アプリ内ブラウザ（非対応環境）ではシェアボタンを事前に非表示にする
+      shareBtn.style.display = 'none';
+    }
+  } catch (e) {
+    shareBtn.style.display = 'none';
+  }
+}
+checkShareSupport();
